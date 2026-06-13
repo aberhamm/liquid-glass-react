@@ -1,0 +1,37 @@
+.mstack/
+.mstack-*
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+storybook-static/
+
+# Test / E2E artifacts
+coverage/
+playwright-report/
+test-results/
+.playwright/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Misc
+.cache/
+*.tsbuildinfo
