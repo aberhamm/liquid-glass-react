@@ -40,7 +40,8 @@ backdrop refract at the glass edges in Chrome.
       → `feDisplacementMap`, instead of `feImage`. No data-URL / canvas involved.
       This yields a frosted/rippled warp (a distinct aesthetic from the lens-edge
       SDF modes) and is the lightest-weight mode. The `displacementScale` and
-      `aberration` controls still apply.
+      `aberration` controls still apply; `feTurbulence` `baseFrequency` defaults to
+      ~`0.015` (tunable) and is independent of `displacementScale`.
 - [ ] The glass surface applies `backdrop-filter: blur(...) saturate(...)` derived
       from `blurAmount`/`saturation`/`overLight`, plus `filter: url(#id)` ONLY
       when `canRefract` is true.
@@ -59,11 +60,17 @@ backdrop refract at the glass edges in Chrome.
 ## Design
 
 The SVG filter is the load-bearing trick. Encode R→X, B→Y to match the maps from
-003. Use `primitiveUnits="objectBoundingBox"` on the `<filter>` and express the
-displacement `scale` in bounding-box-relative terms so the SAME filter renders
-proportionally at any element size (a 40px icon glass and a 400px panel both warp
-correctly with no per-size recompute). `displacementScale` stays the public knob;
-map it internally to the relative scale rather than raw pixels. Chromatic aberration = run `feDisplacementMap` per RGB channel at slightly
+003. **Filter coordinate space — committed default + optional size-independence:**
+the committed default is `primitiveUnits="userSpaceOnUse"` (pixel space), where the
+public `displacementScale` (default `70`) is the literal `feDisplacementMap scale`
+in px — this is upstream-proven and unambiguous. Size-independence via
+`primitiveUnits="objectBoundingBox"` is an OPTIONAL refinement, NOT the default,
+because objectBoundingBox `scale` is a 0–1 fraction of the box: adopting it
+requires mapping `objectBoundingBoxScale = displacementScale / Math.min(measuredWidth,
+measuredHeight)` (measured via a ref/ResizeObserver), which re-introduces a
+measurement. Implement the pixel default first; only pursue objectBoundingBox if a
+spike shows it renders identically AND the measurement cost is acceptable. Do not
+ship a bare `scale="70"` under objectBoundingBox — that is the bug this note prevents. Chromatic aberration = run `feDisplacementMap` per RGB channel at slightly
 different scales, isolate each channel via `feColorMatrix` (zero out the other
 two channels per pass), then recombine. **Recombination must not blow out to
 white:** because each pass is isolated to a single channel, sum them with

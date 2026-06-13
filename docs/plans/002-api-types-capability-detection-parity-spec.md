@@ -65,8 +65,9 @@ gate later plans consult: `supportsBackdropFilter && supportsSvgBackdropDisplace
   composites over `backdrop-filter`" (it is a Chromium rendering-pipeline quirk,
   not a CSS feature). Use the inference `supportsBackdropFilter && !isFirefox`
   (Firefox explicitly breaks it; Safari/WebKit silently fail — both are excluded
-  by the broader fallback). `canRefract = supportsSvgBackdropDisplacement`.
-  Document this inference in `docs/PARITY.md` so it is a known, revisitable
+  by the broader fallback). Therefore `canRefract = supportsSvgBackdropDisplacement
+  = supportsBackdropFilter && !isFirefox` (spelled out so the backdrop-filter factor
+  is never dropped). Document this inference in `docs/PARITY.md` so it is a known, revisitable
   assumption rather than hidden magic.
 - `src/use-glass-capabilities.ts`: client-only hook (useState + useEffect).
 - `src/capabilities.test.ts`: mocked-environment unit tests incl. SSR path.

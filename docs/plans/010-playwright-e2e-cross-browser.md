@@ -90,12 +90,18 @@ infra beyond simple screenshots.
 ## Tasks
 
 1. Install Playwright + browsers; write `playwright.config.ts` with chromium/
-   firefox/webkit projects and a `webServer` that builds+serves `storybook-static`.
+   firefox/webkit projects. The `e2e` script runs `build-storybook` FIRST, then
+   `playwright test`; the `webServer` command ONLY serves the pre-built
+   `storybook-static` (e.g. `npx http-server storybook-static -p 6006`) — it does
+   NOT build inside the webServer (that races readiness).
 2. Write `e2e/refraction.spec.ts`: assert SVG filter active in Chromium; assert
    fallback render + non-zero box + zero console errors in Firefox/WebKit (these
    passing = degradation verified).
 3. Write `e2e/interaction.spec.ts`: pointer move changes the glass `transform`.
 4. Write `e2e/glass-button.spec.ts`: keyboard focus + Enter/Space activation per engine.
+   Write `e2e/glass-segmented-control.spec.ts`: arrow/click selection moves the glass
+   indicator (assert its transform/position changed), keyboard operability, zero
+   console errors, across all three engines.
 5. Add `e2e` scripts; ensure the suite builds Storybook first and runs headless.
 6. Run the full suite green across all three engines.
 

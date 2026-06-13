@@ -24,8 +24,11 @@ our own code rather than copied from upstream's base64 blobs. The "user" is plan
 
 **Acceptance criteria:**
 
-- [ ] `src/displacement.ts` exports `getDisplacementMap(mode: DisplacementMode,
-      width: number, height: number): string` returning a `data:` URL.
+- [ ] `src/displacement.ts` exports `getDisplacementMap(mode: Exclude<
+      DisplacementMode, 'turbulence'>, width: number, height: number): string`
+      returning a `data:` URL. The type EXCLUDES `'turbulence'` (it is procedural,
+      owned by 004) so the call contract is unambiguous — `getDisplacementMap` is
+      never called for turbulence; 004 routes that mode to `feTurbulence` first.
 - [ ] `shader` mode runs a per-pixel rounded-rect SDF + smoothstep on an offscreen
       canvas and encodes displacement as R=X (xChannelSelector) and B=Y
       (yChannelSelector), A=255, then `canvas.toDataURL()`. (G is unused by
@@ -70,8 +73,9 @@ check and assert the math/encoding directly where canvas is unavailable.
 **Out of scope:** the SVG `<filter>` element, `backdrop-filter`, the component,
 chromatic aberration (that is 004). Also out of scope: the `'turbulence'` mode —
 it is procedural (`feTurbulence` built inline in the SVG filter, plan 004) and is
-NOT a data-URL map, so `getDisplacementMap` does not handle it (return/throw a
-clear "not a map mode" signal, or simply never get called for it). Do not copy
+NOT a data-URL map, so `getDisplacementMap`'s parameter type excludes it
+(`Exclude<DisplacementMode,'turbulence'>`) — the call is prevented at the type
+level rather than handled defensively at runtime. Do not copy
 upstream's base64 image strings — generate maps from code. Keep this module free
 of React.
 
@@ -81,7 +85,10 @@ of React.
 2. Implement the `shader`-mode canvas renderer: per-pixel SDF → smoothstep band →
    displacement vector → R/G/B/A encoding → `toDataURL()`.
 3. Implement `standard`/`polar`/`prominent` generators (e.g. radial / polar /
-   higher-contrast variants) producing their own data-URLs.
+   higher-contrast variants) producing their own data-URLs. The worker MAY define
+   each mode's distinct aesthetic; the only hard constraints are the R=X/B=Y
+   encoding (128 = neutral) and that each mode is deterministic/reproducible for a
+   given `(mode,width,height)`.
 4. Add `(mode,width,height)` caching and the SSR/no-canvas guard.
 5. Write `src/displacement.test.ts` covering math, encoding ranges, data-URL
    prefixes, cache hits, and the no-canvas path.

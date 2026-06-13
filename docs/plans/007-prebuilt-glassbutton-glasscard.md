@@ -79,7 +79,13 @@ here so the segmented control (012) and future components stay consistent.
 shadcn/Radix `asChild` ergonomics, but we ship our own ~15-line `Slot` that
 `React.cloneElement`s the single child and merges className, style, event
 handlers, and ref. This keeps the polymorphic API without adding
-`@radix-ui/react-slot` as a dependency. `asChild` replaces the earlier plain `as`
+`@radix-ui/react-slot` as a dependency. (React-version note: under React 18,
+`cloneElement` forwards `ref` normally; under React 19, `ref` is a regular prop —
+merge it onto the child's props rather than relying on `cloneElement` ref
+forwarding. Detect from the installed React version; the library peer-deps
+`react >=18`.) The shared inset-shadow edge from 005 is consumed via
+`src/glass-edge.ts`'s exported CSS custom properties referenced in the stylesheet
+(single source of truth — never re-hardcode the box-shadow values here). `asChild` replaces the earlier plain `as`
 prop idea (Slot is strictly more capable). Document that with `asChild` the
 consumer's child element owns its own semantics/a11y.
 
@@ -117,8 +123,9 @@ beyond Button and Card, theming systems. Keep the API small and composable.
 
 1. Implement the internal `Slot` (`src/slot.tsx`) and the standalone variant
    resolver (`src/variants.ts`); write the components' stylesheet.
-2. Implement `<GlassButton>` (semantic button, `asChild`, variant/size, focus
-   ring, shine-on-press, disabled handling, ref forwarding, aria-hidden glass).
+2. Implement `<GlassButton>` (semantic button, `asChild`, variant/size incl.
+   `icon`, `contentClassName` on the isolated content layer, focus ring,
+   shine-on-press, disabled handling, ref forwarding, aria-hidden glass).
 3. Implement `<GlassCard>` (defaults, `asChild`, `elevation`, children, ref).
 4. Add the `glassProps` escape hatch to both.
 5. Export both + types from `src/index.ts`; add the CSS `exports` subpath.

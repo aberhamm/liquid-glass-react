@@ -84,8 +84,10 @@ strategy, not a refraction polyfill.
 1. Define the tiered render: full (canRefract) → frosted (backdrop-filter) →
    solid translucent (neither), sharing identical box geometry.
 2. Make capability application hydration-safe (conservative SSR/first-paint, then
-   effect-driven upgrade); add the `renderToString` → `hydrateRoot` test with a
-   `console.error` spy to prove no hydration mismatch.
+   effect-driven upgrade); create-or-extend `src/liquid-glass.test.tsx` with the
+   `renderToString` (`react-dom/server`) → `hydrateRoot` (`react-dom/client`) test
+   + `console.error` spy to prove no hydration mismatch. `react`/`react-dom` are
+   already dev-installed via 001; no new dep needed.
 3. Add `-webkit-backdrop-filter` and the solid-background final fallback.
 4. Ensure motion + rim layers render in fallback and honor reduced-motion.
 5. Extend `src/liquid-glass.test.tsx` with the capability matrix, a

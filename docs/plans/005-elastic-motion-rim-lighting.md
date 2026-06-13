@@ -70,9 +70,11 @@ elasticity * 0.1 * fadeIn`. Rim layers use blend modes and a rotating gradient.
 - `src/use-mouse-position.ts`: tracking hook + override handling + reduced-motion
   + touch-device detection (disables follow on touch, SSR-safe).
 - `src/motion.ts`: pure `calculateDirectionalScale`, `calculateElasticTranslation`.
-- `src/glass-edge.ts` (or co-located): the layered inset-shadow `box-shadow`
-  strings for light/dark, exported so 006's fallback and 007's components reuse
-  the exact same edge treatment (DRY — one source of truth for the bevel).
+- `src/glass-edge.ts`: the layered inset-shadow `box-shadow` strings for
+  light/dark, exported as named constants (and/or CSS custom properties) from THIS
+  exact path so 006's fallback, 007's stylesheet, and 012's control reuse the same
+  edge treatment (DRY — one source of truth for the bevel; consumers import it, they
+  do not hardcode the shadow string).
 - `src/liquid-glass.tsx`: consume the hook, apply transform, render highlight/border
   layers + the inset-shadow edge, the decoupled sibling drop-shadow element, and
   hover/active states.
