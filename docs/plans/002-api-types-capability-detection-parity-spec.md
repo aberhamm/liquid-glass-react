@@ -29,7 +29,7 @@ consumers importing types and the `useGlassCapabilities` hook.
       `children`, `displacementScale`, `blurAmount`, `saturation`,
       `aberrationIntensity`, `elasticity`, `cornerRadius`, `padding`,
       `overLight`, `mode` (`DisplacementMode` union of
-      `'standard'|'polar'|'prominent'|'shader'`), `className`, `style`,
+      `'standard'|'polar'|'prominent'|'shader'|'turbulence'`), `className`, `style`,
       `onClick`, and the motion/tracking props `globalMousePos`, `mouseOffset`,
       `mouseContainer`. Each prop is documented with a TSDoc comment and (where
       applicable) a default noted.

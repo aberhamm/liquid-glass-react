@@ -61,8 +61,12 @@ Canvas in jsdom is limited; gate canvas-dependent assertions behind a capability
 check and assert the math/encoding directly where canvas is unavailable.
 
 **Out of scope:** the SVG `<filter>` element, `backdrop-filter`, the component,
-chromatic aberration (that is 004). Do not copy upstream's base64 image strings —
-generate maps from code. Keep this module free of React.
+chromatic aberration (that is 004). Also out of scope: the `'turbulence'` mode —
+it is procedural (`feTurbulence` built inline in the SVG filter, plan 004) and is
+NOT a data-URL map, so `getDisplacementMap` does not handle it (return/throw a
+clear "not a map mode" signal, or simply never get called for it). Do not copy
+upstream's base64 image strings — generate maps from code. Keep this module free
+of React.
 
 ## Tasks
 

@@ -33,10 +33,20 @@ its edges catch light — in Chrome, Firefox, and Safari alike.
 - [ ] `<LiquidGlass>` applies the resulting `transform` (scale + translate) and
       renders two highlight/border `<span>` layers using `mix-blend-mode`
       (screen/overlay) with a gradient whose angle tracks `mouseOffset.x`.
+- [ ] A pure-CSS glass edge: a layered `box-shadow` stack (multiple `inset`
+      highlights + soft outer shadow) renders a convincing beveled rim with NO SVG
+      and NO blend dependency, so it works in every browser. Provide a light-mode
+      and dark-mode variant (dark flips the inset highlight direction/color), keyed
+      off `prefers-color-scheme` or an explicit prop. This is the load-bearing
+      cross-browser polish (and the backbone of 006's fallback).
+- [ ] Touch-aware: detect touch devices (`'ontouchstart' in window ||
+      navigator.maxTouchPoints > 0`) and disable hover-only treatments + the
+      cursor-follow elastic motion on touch (no hover state to chase). SSR-safe.
 - [ ] Hover and active (`onClick` present) states add the press/highlight
       treatment without breaking layout.
-- [ ] The motion layers and rim lighting render regardless of `canRefract`
-      (cross-browser), and respect `mouseContainer` when provided.
+- [ ] The motion layers, inset-shadow rim, and gradient highlights render
+      regardless of `canRefract` (cross-browser), and respect `mouseContainer`
+      when provided.
 - [ ] Unit tests cover the scale/translate math (boundary, zero-elasticity,
       clamping) and that the hook returns neutral values under reduced-motion / SSR.
 
@@ -50,10 +60,14 @@ elasticity * 0.1 * fadeIn`. Rim layers use blend modes and a rotating gradient.
 
 **Files expected to change:**
 
-- `src/use-mouse-position.ts`: tracking hook + override handling + reduced-motion.
+- `src/use-mouse-position.ts`: tracking hook + override handling + reduced-motion
+  + touch-device detection (disables follow on touch, SSR-safe).
 - `src/motion.ts`: pure `calculateDirectionalScale`, `calculateElasticTranslation`.
+- `src/glass-edge.ts` (or co-located): the layered inset-shadow `box-shadow`
+  strings for light/dark, exported so 006's fallback and 007's components reuse
+  the exact same edge treatment (DRY — one source of truth for the bevel).
 - `src/liquid-glass.tsx`: consume the hook, apply transform, render highlight/border
-  layers, hover/active states.
+  layers + the inset-shadow edge, hover/active states.
 - `src/motion.test.ts`: math unit tests.
 - `src/use-mouse-position.test.ts`: hook tests (override, reduced-motion, SSR).
 

@@ -24,10 +24,13 @@ browser matrix, install it, and the types/imports just work.
 **Acceptance criteria:**
 
 - [ ] `README.md` documents: install (`pnpm/npm add`), quick-start usage for
-      `LiquidGlass`/`GlassButton`/`GlassCard`, the full prop API table, the
-      `mode` options, the capability hook, a Storybook link/build note, and a
+      `LiquidGlass`/`GlassButton`/`GlassCard`, the prebuilt-components CSS import
+      (the `exports` subpath from 007), the `asChild` polymorphism pattern, the
+      full prop API table, the `mode` options (including `shader` and
+      `turbulence`), the capability hook, a Storybook link/build note, and a
       clear browser-support matrix (Chromium = full refraction; Firefox/Safari =
-      graceful frosted fallback) consistent with `docs/PARITY.md`.
+      graceful frosted fallback with the inset-shadow glass edge) consistent with
+      `docs/PARITY.md`.
 - [ ] `npm pack` (dry-run) ships only `dist/` (+ README/LICENSE) — no `src`,
       tests, stories, Storybook, or e2e files; verified via `npm pack --dry-run`.
 - [ ] Published types validated: a type-level smoke check imports the package's

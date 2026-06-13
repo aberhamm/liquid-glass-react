@@ -36,10 +36,12 @@ green Playwright = the library genuinely works everywhere.
       degradation assertion (not skipped, not xfail).
 - [ ] Interaction test: moving the pointer near the glass changes its `transform`
       (elastic motion) in at least Chromium and Firefox.
-- [ ] Mode smoke (Chromium): on the `Modes` story (009), `mode="shader"` produces
-      a non-empty displacement-map `data:` URL (the runtime canvas generation ran)
-      and the filter is applied — guarding the most fragile mode against silent
-      breakage.
+- [ ] Mode smoke (Chromium): on the `Modes` story (009), guard the two fragile
+      modes. `mode="shader"` produces a non-empty displacement-map `data:` URL via
+      `feImage` (the runtime canvas generation ran). `mode="turbulence"` builds the
+      filter from `feTurbulence` (an `feTurbulence` node is present and no `feImage`
+      data-URL is used). Both attach the filter — guarding against silent breakage
+      of either generation path.
 - [ ] `GlassButton` test: keyboard focus + activation works (a11y-level check) in
       all three engines.
 - [ ] `pnpm e2e` runs the suite headless and is wired into CI (extended in 011);

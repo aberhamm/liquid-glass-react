@@ -35,6 +35,12 @@ backdrop refract at the glass edges in Chrome.
       chromatic aberration (R/G/B at offset scales driven by `aberrationIntensity`),
       a radial edge mask so refraction appears only at the rim, and a small
       `feGaussianBlur`.
+- [ ] `mode="turbulence"` takes a procedural path: the filter source is
+      `feTurbulence` (`type="fractalNoise"`, low `baseFrequency`) → `feGaussianBlur`
+      → `feDisplacementMap`, instead of `feImage`. No data-URL / canvas involved.
+      This yields a frosted/rippled warp (a distinct aesthetic from the lens-edge
+      SDF modes) and is the lightest-weight mode. The `displacementScale` and
+      `aberration` controls still apply.
 - [ ] The glass surface applies `backdrop-filter: blur(...) saturate(...)` derived
       from `blurAmount`/`saturation`/`overLight`, plus `filter: url(#id)` ONLY
       when `canRefract` is true.
@@ -57,6 +63,15 @@ rather than naive `feBlend mode="screen"` on full-color copies, which
 over-brightens. The edge mask (radial gradient + `feComponentTransfer`) confines
 the warp to the rim. Filter id must be unique per mounted instance (use
 `useId()`) so multiple glasses on a page don't collide.
+
+**Application mechanism — spike, then pick one:** two ways to apply the filter
+exist. (a) Our default: a backdrop `<span>` with `backdrop-filter: blur()
+saturate()` PLUS `filter: url(#id)`. (b) Reference the SVG filter directly in
+`backdrop-filter: url(#id)` (no separate span). (b) is cleaner when it works but
+has the same Chromium-only constraint and slightly different support edges.
+Spike both early in Chromium; keep (a) as the safe default unless (b) renders
+identically. Either way `canRefract` gates whether the filter is attached, so the
+cross-browser story (006) is unchanged.
 
 **Files expected to change:**
 

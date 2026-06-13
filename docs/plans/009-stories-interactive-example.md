@@ -26,12 +26,15 @@ designer reviewing the showcase for visual quality.
 - [ ] `LiquidGlass` story exposes ALL props as Storybook controls (ranges for
       numeric props, a select for `mode`, booleans for `overLight`, etc.) with
       argTypes + docs descriptions sourced from the prop TSDoc.
-- [ ] `GlassButton` and `GlassCard` stories show each variant/size and the
-      escape-hatch usage.
-- [ ] A `Modes` story (or a parameterized matrix) renders all four
-      `DisplacementMode` values (`standard`, `polar`, `prominent`, `shader`) so
-      every mode — especially the runtime-generated `shader` — is visibly
-      exercised, not just reachable via a control.
+- [ ] `GlassButton` and `GlassCard` stories show each variant/size, the
+      escape-hatch usage, the shine-on-press, and an `asChild` example (e.g.
+      `<GlassButton asChild><a href="#">Link</a></GlassButton>`) rendering a real
+      anchor with glass styling.
+- [ ] A `Modes` story (or a parameterized matrix) renders all five
+      `DisplacementMode` values (`standard`, `polar`, `prominent`, `shader`,
+      `turbulence`) so every mode — especially the runtime-generated `shader` and
+      the procedural `turbulence` (frosted-ripple) — is visibly exercised, not just
+      reachable via a control.
 - [ ] A dedicated `Example`/`Showcase` story renders a glass card/button over an
       animated or image-rich background (e.g. moving gradient or scrolling photo)
       so the refraction edge-bending and cursor elasticity are clearly visible in

@@ -27,8 +27,11 @@ the component server-side without warnings.
 
 - [ ] When `canRefract` is false, `<LiquidGlass>` renders the fallback path:
       `backdrop-filter` blur+saturate (with `-webkit-` prefix), rim/highlight
-      layers, and elastic motion — but NO SVG filter and no orphaned `<filter>`
-      that could error.
+      layers, the layered inset-shadow glass edge from 005, and elastic motion —
+      but NO SVG filter and no orphaned `<filter>` that could error. The
+      inset-shadow edge is what makes the degraded result look like real glass
+      rather than a plain blurred box — it must be present in the fallback, not
+      just the full-effect path.
 - [ ] When `backdrop-filter` itself is unsupported, a final solid/translucent
       background fallback keeps content legible (no transparent unreadable box).
 - [ ] SSR: the first (server) render and first client render agree
