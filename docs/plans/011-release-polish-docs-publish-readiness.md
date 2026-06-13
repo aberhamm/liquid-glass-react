@@ -53,9 +53,10 @@ and legally clean (upstream is MIT).
 
 - `README.md`: full docs + browser matrix.
 - `LICENSE`: MIT + attribution/independent-reimplementation note.
-- `package.json`: confirm `name` is `liquid-glass-react-x` (set in 001 — do not
-  rename), finalize `version`, `description`, `keywords`, `repository`, `license`,
-  `files`, `publishConfig` if needed; add `prepublishOnly` running the gate; add
+- `package.json`: confirm `name` is `@aberhamm/liquid-glass-react` (set in 001 —
+  do not rename) with `publishConfig.access: "public"` (required for scoped
+  packages); finalize `version`, `description`, `keywords`, `repository`,
+  `license`, `files`; add `prepublishOnly` running the gate; add
   `@arethetypeswrong/cli` to devDependencies and an `attw`/pack-check script.
 - `.github/workflows/ci.yml`: extend to build-storybook + playwright with caching.
 - `test/consumer-fixture/`: tiny ESM + CJS import/type smoke (optional but preferred).

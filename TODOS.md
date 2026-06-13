@@ -1,6 +1,6 @@
 # TODOS
 
-Deferred work and coverage gaps for `liquid-glass-react-x`. These were identified
+Deferred work and coverage gaps for `@aberhamm/liquid-glass-react`. These were identified
 during planning (`/mstack-plan-multi`) and validation (`/mstack-plan-doctor`) but
 deliberately left out of the 11-plan backlog under a "Hold" review posture — they
 expand scope rather than complete the core feature. Pull any of these into a future

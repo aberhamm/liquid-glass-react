@@ -17,7 +17,7 @@ logic can be written, the repository needs a working package skeleton: a
 buildable library that emits ESM + CJS + type declarations, a unit-test harness
 that runs in CI, and lint/format tooling. The "user" here is the next plan's
 autonomous worker and, ultimately, a consumer who runs `pnpm add
-liquid-glass-react-x` and imports a typed component. Done means a placeholder
+@aberhamm/liquid-glass-react` and imports a typed component. Done means a placeholder
 export builds, type-checks, lints, and is covered by one passing test — all
 green in CI.
 
@@ -40,9 +40,12 @@ green in CI.
 ## Design
 
 A modern Vite-library-mode setup with a separate type-declaration emit step.
-Package name: **`liquid-glass-react-x`** (the bare `liquid-glass-react` is taken
-by the MIT upstream we are reimplementing, not forking; this distinct name is the
-published identity used consistently in 011's README install instructions). Use
+Package name: **`@aberhamm/liquid-glass-react`** (the bare `liquid-glass-react`
+is taken on npm by the MIT upstream we are reimplementing, not forking; this
+scoped name keeps the descriptive name while making the "independent
+reimplementation" relationship clear, and is the published identity used
+consistently in 011's README install instructions). Set
+`publishConfig.access: "public"` so the scoped package publishes publicly. Use
 `pnpm`.
 
 **Files expected to change:**
