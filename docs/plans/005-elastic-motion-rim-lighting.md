@@ -39,6 +39,13 @@ its edges catch light — in Chrome, Firefox, and Safari alike.
       and dark-mode variant (dark flips the inset highlight direction/color), keyed
       off `prefers-color-scheme` or an explicit prop. This is the load-bearing
       cross-browser polish (and the backbone of 006's fallback).
+- [ ] The drop-shadow / glow is a SEPARATE sibling element rendered behind the
+      glass surface, NOT a `box-shadow` on the glass node itself. The glass surface
+      uses `overflow: hidden` + the backdrop clip, which clips a same-element
+      box-shadow; a decoupled sibling shadow can blur/offset/animate freely without
+      being clipped. (The inset-shadow EDGE above is the rim bevel; this is the
+      outer drop shadow — they are different layers and both stay off the clipped
+      node where clipping would break them.)
 - [ ] Touch-aware: detect touch devices (`'ontouchstart' in window ||
       navigator.maxTouchPoints > 0`) and disable hover-only treatments + the
       cursor-follow elastic motion on touch (no hover state to chase). SSR-safe.
@@ -67,7 +74,8 @@ elasticity * 0.1 * fadeIn`. Rim layers use blend modes and a rotating gradient.
   strings for light/dark, exported so 006's fallback and 007's components reuse
   the exact same edge treatment (DRY — one source of truth for the bevel).
 - `src/liquid-glass.tsx`: consume the hook, apply transform, render highlight/border
-  layers + the inset-shadow edge, hover/active states.
+  layers + the inset-shadow edge, the decoupled sibling drop-shadow element, and
+  hover/active states.
 - `src/motion.test.ts`: math unit tests.
 - `src/use-mouse-position.test.ts`: hook tests (override, reduced-motion, SSR).
 

@@ -46,6 +46,11 @@ backdrop refract at the glass edges in Chrome.
       when `canRefract` is true.
 - [ ] `overLight` halves `displacementScale` and adjusts blur, per parity spec.
 - [ ] `className`, `style`, `padding`, `cornerRadius`, and `onClick` are honored.
+- [ ] Content isolation: `children` render in a dedicated content layer that sits
+      ABOVE the glass surface and is NEVER inside the filtered/displaced node — the
+      `feDisplacementMap` warps only the backdrop, so labels/content stay crisp
+      over the rippled glass. A render test asserts the children node is not a
+      descendant of the element carrying `filter: url(#id)`.
 - [ ] Unit tests assert prop→style/attribute mapping: filter present when
       `canRefract` mocked true and absent when false; correct channel selectors;
       aberration offsets scale with `aberrationIntensity`; backdrop-filter string
@@ -86,6 +91,10 @@ cross-browser story (006) is unchanged.
 RTL/jsdom now (DOM/attribute assertions), and exercised in a real browser via
 Storybook (009) and Playwright (010). jsdom won't paint the filter, so assertions
 target the rendered DOM/attributes, not pixels.
+
+The component is a small layer stack: a clipped glass surface (backdrop-filter +
+optional `filter: url(#id)`) UNDERNEATH a separate, unfiltered content layer that
+holds `children`. Never put children inside the filtered node.
 
 **Out of scope:** elastic mouse motion, rim-lighting highlight layers, mouse
 tracking (005); the visible fallback rendering for unsupported browsers (006);

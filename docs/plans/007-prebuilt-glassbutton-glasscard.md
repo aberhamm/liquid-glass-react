@@ -24,9 +24,12 @@ inherits all the cross-browser behavior from 004–006.
 
 - [ ] `<GlassButton>` renders a real `<button>` by default, forwards `onClick`,
       `disabled`, `type`, `aria-*`, and `ref`; supports `variant`
-      (`'primary'|'secondary'|'subtle'`) and `size` (`'sm'|'md'|'lg'`) mapping to
-      tuned `LiquidGlass` props; keyboard-focusable with a visible focus ring; and
-      an optional `shine` (default on) that sweeps a brief highlight on press.
+      (`'primary'|'secondary'|'subtle'`) and `size`
+      (`'sm'|'md'|'lg'|'icon'` — `icon` is square and centers a single icon child);
+      maps to tuned `LiquidGlass` props; keyboard-focusable with a visible focus
+      ring; and an optional `shine` (default on) that sweeps a brief highlight on
+      press. A `contentClassName` prop styles the isolated content layer (the span
+      holding `children`) independently of the wrapper.
 - [ ] Both components support `asChild` (polymorphic composition): when
       `asChild` is set, the component renders its single child element and merges
       its own props/className/ref onto it (so `<GlassButton asChild><a
