@@ -59,7 +59,11 @@ backdrop refract at the glass edges in Chrome.
 ## Design
 
 The SVG filter is the load-bearing trick. Encode R→X, B→Y to match the maps from
-003. Chromatic aberration = run `feDisplacementMap` per RGB channel at slightly
+003. Use `primitiveUnits="objectBoundingBox"` on the `<filter>` and express the
+displacement `scale` in bounding-box-relative terms so the SAME filter renders
+proportionally at any element size (a 40px icon glass and a 400px panel both warp
+correctly with no per-size recompute). `displacementScale` stays the public knob;
+map it internally to the relative scale rather than raw pixels. Chromatic aberration = run `feDisplacementMap` per RGB channel at slightly
 different scales, isolate each channel via `feColorMatrix` (zero out the other
 two channels per pass), then recombine. **Recombination must not blow out to
 white:** because each pass is isolated to a single channel, sum them with

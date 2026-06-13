@@ -68,6 +68,13 @@ glass layers are decorative (`aria-hidden`). Concrete defaults: `GlassButton`
 focus ring uses `:focus-visible` with a `2px` offset outline tuned for legibility
 on a translucent surface (not a removed/`outline:none` ring).
 
+**Controlled/uncontrolled contract.** Any stateful surface these components expose
+(and the convention every interactive component in this library follows) supports
+both controlled and uncontrolled use: a `value`/`defaultValue` pair with an
+`onValueChange` (or equivalently-named) callback, falling back to internal state
+when uncontrolled. GlassButton itself is mostly stateless, but lock the convention
+here so the segmented control (012) and future components stay consistent.
+
 **Polymorphism via `asChild` (internal Slot), not Radix.** Inspired by the
 shadcn/Radix `asChild` ergonomics, but we ship our own ~15-line `Slot` that
 `React.cloneElement`s the single child and merges className, style, event

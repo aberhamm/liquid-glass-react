@@ -24,7 +24,8 @@ browser matrix, install it, and the types/imports just work.
 **Acceptance criteria:**
 
 - [ ] `README.md` documents: install (`pnpm/npm add`), quick-start usage for
-      `LiquidGlass`/`GlassButton`/`GlassCard`, the prebuilt-components CSS import
+      `LiquidGlass`/`GlassButton`/`GlassCard`/`GlassSegmentedControl`, the
+      prebuilt-components CSS import
       (the `exports` subpath from 007), the `asChild` polymorphism pattern, the
       full prop API table, the `mode` options (including `shader` and
       `turbulence`), the capability hook, a Storybook link/build note, and a

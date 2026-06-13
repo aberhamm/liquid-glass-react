@@ -2,7 +2,7 @@
 id: 010
 title: Playwright cross-browser E2E suite
 status: pending
-blocked-by: [009]
+blocked-by: [009, 012]
 priority:
 goal: liquid-glass-component-library
 allows-migrations: false
@@ -44,6 +44,11 @@ green Playwright = the library genuinely works everywhere.
       of either generation path.
 - [ ] `GlassButton` test: keyboard focus + activation works (a11y-level check) in
       all three engines.
+- [ ] `GlassSegmentedControl` test (012): in all three engines, arrow-key/click
+      selection moves the glass indicator to the chosen option (assert the
+      indicator's transform/position changed), the radiogroup is keyboard
+      operable, and there are zero console errors — degradation (refraction absent
+      in Firefox/WebKit) is the pass criterion, same as the primitive.
 - [ ] `pnpm e2e` runs the suite headless and is wired into CI (extended in 011);
       screenshots are written to a reports dir.
 
@@ -69,6 +74,8 @@ in 011's CI, not asserted as a local gate here.
   assertions with console/pageerror guards.
 - `e2e/interaction.spec.ts`: pointer-move elastic transform change.
 - `e2e/glass-button.spec.ts`: keyboard focus/activation across engines.
+- `e2e/glass-segmented-control.spec.ts`: arrow/click selection moves the indicator,
+  keyboard operability, zero console errors, across engines.
 - `package.json`: `e2e` / `e2e:ui` scripts + `@playwright/test` devDep.
 - `.gitignore`: playwright report/output dirs.
 

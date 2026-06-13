@@ -56,6 +56,13 @@ G is unused and may be left 0 or mirror B.
   SSR no-canvas path.
 - `src/index.ts`: optionally export `getDisplacementMap` for advanced consumers.
 
+**Bundle-size discipline:** the `standard`/`polar`/`prominent` maps are generated
+at RUNTIME (canvas → data-URL, cached), NOT shipped as large inline base64 blobs
+in the JS bundle — a single prebaked displacement map is ~10–15KB and several
+would dominate the package size (this is exactly TODO T2's concern). If a future
+optimization wants prebaked maps, emit them as separate build-time assets and
+prefer WEBP over PNG/JPEG; never inline base64 maps into the bundle by default.
+
 **Testing approach:** unit-only — pure math + canvas encoding, tested with Vitest.
 Canvas in jsdom is limited; gate canvas-dependent assertions behind a capability
 check and assert the math/encoding directly where canvas is unavailable.

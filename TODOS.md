@@ -36,7 +36,11 @@ Status legend: 🔵 not started · 🟡 in progress · ✅ done
   generator (plan 003) is non-trivial and could bloat a `GlassButton`-only import.
 - **Context:** Add `size-limit` config keyed per public entry point. Natural home is an
   extension of plan 011's release/CI work. Confirm the build (plan 001 Vite lib mode)
-  emits tree-shakeable ESM first.
+  emits tree-shakeable ESM first. Plan 003 already commits to runtime-generated
+  displacement maps (no inline base64 blobs) to keep this budget honest — the
+  remaining risk is the displacement generator / SVG-filter code weight leaking
+  into a `GlassButton`-only import. If prebaked maps are ever reintroduced, they
+  must be build-time assets (WEBP), not bundle-inlined.
 - **Depends on:** 001 (build), 011 (release/CI).
 - **Effort:** human ~2h / CC ~15 min.
 
