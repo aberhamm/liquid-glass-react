@@ -28,8 +28,12 @@ green in CI.
 - [ ] `pnpm build` produces `dist/index.mjs` (ESM), `dist/index.cjs` (CJS), and
       `dist/index.d.ts` (types) via Vite library mode + a declaration step.
 - [ ] `package.json` has a correct `exports` map (`import`/`require`/`types`
-      conditions), `main`, `module`, `types`, `sideEffects: false`, and `files`
-      restricted to `dist`.
+      conditions), `main`, `module`, `types`, and `files` restricted to `dist`.
+      `sideEffects` is `["**/*.css"]` — NOT bare `false` (eng-review 2026-06-13):
+      the components ship a real stylesheet (007) that consumers import for its
+      side effect; bare `sideEffects: false` would let optimizing bundlers drop
+      that CSS import and render components unstyled in production. The `["**/*.css"]`
+      allowlist keeps JS tree-shakeable while preserving the stylesheet.
 - [ ] `pnpm typecheck` (tsc --noEmit) passes.
 - [ ] `pnpm lint` passes using Biome (or ESLint) with a committed config.
 - [ ] `pnpm test` runs Vitest with jsdom + React Testing Library and one

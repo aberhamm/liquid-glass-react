@@ -23,9 +23,17 @@ its edges catch light — in Chrome, Firefox, and Safari alike.
 
 **Acceptance criteria:**
 
+- [ ] `src/use-reduced-motion.ts` exports a `useReducedMotion()` hook (eng-review
+      2026-06-13): the SINGLE live source of reduced-motion state — `matchMedia(
+      '(prefers-reduced-motion: reduce)')` plus a `'change'` listener so it reacts
+      when the user toggles the OS setting mid-session, SSR-safe (conservative
+      `false`/no-motion default before mount). `useMousePosition` (005), the fallback
+      path (006), and the segmented control (012) consume THIS hook; `capabilities.ts`
+      (002) may surface its value but the live hook is authoritative. No path calls
+      `matchMedia('prefers-reduced-motion')` independently.
 - [ ] `src/use-mouse-position.ts` exports a `useMousePosition(container?)` hook
       tracking pointer position relative to an element center, respecting a
-      `globalMousePos`/`mouseOffset` override and `prefersReducedMotion` (no motion
+      `globalMousePos`/`mouseOffset` override and `useReducedMotion()` (no motion
       when reduced-motion is set).
 - [ ] `calculateDirectionalScale()` and `calculateElasticTranslation()` pure
       functions implement the stretch/translate math (clamped, fade-in with
@@ -56,6 +64,11 @@ its edges catch light — in Chrome, Firefox, and Safari alike.
       when provided.
 - [ ] Unit tests cover the scale/translate math (boundary, zero-elasticity,
       clamping) and that the hook returns neutral values under reduced-motion / SSR.
+- [ ] A render test asserts the decoupled drop-shadow element is a SIBLING of (not
+      a descendant of) the `overflow:hidden` clipped glass surface (eng-review
+      2026-06-13) — mirroring 004's content-isolation test. This guards the
+      structural property that makes the shadow render at all (a same-node
+      box-shadow would be clipped away).
 
 ## Design
 
@@ -67,8 +80,10 @@ elasticity * 0.1 * fadeIn`. Rim layers use blend modes and a rotating gradient.
 
 **Files expected to change:**
 
-- `src/use-mouse-position.ts`: tracking hook + override handling + reduced-motion
-  + touch-device detection (disables follow on touch, SSR-safe).
+- `src/use-reduced-motion.ts`: the single live `useReducedMotion()` hook
+  (matchMedia + change listener, SSR-safe) consumed by 002/005/006/012.
+- `src/use-mouse-position.ts`: tracking hook + override handling + consumes
+  `useReducedMotion()` + touch-device detection (disables follow on touch, SSR-safe).
 - `src/motion.ts`: pure `calculateDirectionalScale`, `calculateElasticTranslation`.
 - `src/glass-edge.ts`: the layered inset-shadow `box-shadow` strings for
   light/dark, exported as named constants (and/or CSS custom properties) from THIS

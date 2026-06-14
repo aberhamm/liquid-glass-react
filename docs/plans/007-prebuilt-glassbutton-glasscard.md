@@ -111,6 +111,9 @@ and framework-agnostic (the whole point of not being a shadcn add-on).
 - `src/index.ts`: export both + their types; expose the stylesheet path.
 - `src/types.ts`: add `GlassButtonProps`/`GlassCardProps` if co-located there.
 - `package.json`: add a `./styles.css` (or similar) `exports` subpath for the CSS.
+  Confirm `sideEffects` is `["**/*.css"]` (set in 001, eng-review 2026-06-13) so the
+  stylesheet survives downstream tree-shaking, and that the built CSS is emitted under
+  `dist` and included in `files` (verified by 011's pack-check).
 
 **Testing approach:** browser-based — user-facing components; semantics/props
 verified via Vitest + RTL now, visual/interaction verified in Storybook (009) and

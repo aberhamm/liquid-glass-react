@@ -14,9 +14,14 @@ created: 2026-06-13
 
 The whole library hinges on two contracts that must be defined ONCE, up front,
 so every later plan builds against a stable surface: (1) the complete public
-prop/type API for `<LiquidGlass>` and the prebuilt components, and (2) a runtime
-capability-detection module that decides whether the Chromium-only refraction
-effect can render. Without these, the refraction plan (004), the motion plan
+prop/type API for the `<LiquidGlass>` PRIMITIVE, plus the shared types and
+conventions the prebuilt components extend (the `DisplacementMode` union, `MousePos`,
+`GlassCapabilities`, and the controlled/uncontrolled convention). Each prebuilt
+component's OWN full API is defined in its own plan — `GlassButton`/`GlassCard` in
+007, `GlassSegmentedControl` in 012 — not frozen here (eng-review 2026-06-13, Codex
+outside-voice: 002 fixes the primitive + shared surface, not every component's props).
+And (2) a runtime capability-detection module that decides whether the Chromium-only
+refraction effect can render. Without these, the refraction plan (004), the motion plan
 (005), and the fallback plan (006) would each redefine the API and re-detect
 capabilities incompatibly. This plan also writes the parity/non-goals spec that
 keeps the non-forked reimplementation honest about what we match and what we
@@ -34,7 +39,7 @@ consumers importing types and the `useGlassCapabilities` hook.
       `mouseContainer`. Each prop is documented with a TSDoc comment and (where
       applicable) a default noted.
 - [ ] `src/capabilities.ts` exports `detectGlassCapabilities()` returning a typed
-      `GlassCapabilities` object (`supportsBackdropFilter`,
+      `GlassCapabilities` object (`supportsBackdropFilter`, `isChromium`,
       `supportsSvgBackdropDisplacement`, `isFirefox`, `prefersReducedMotion`,
       `canRefract`) and is SSR-safe (no crash when `window`/`document`/`navigator`
       are undefined — returns conservative `false` defaults).
@@ -42,6 +47,10 @@ consumers importing types and the `useGlassCapabilities` hook.
       (client-only) and returns the current `GlassCapabilities`.
 - [ ] Unit tests cover capability detection with mocked `CSS.supports`,
       `navigator.userAgent`, and `matchMedia`, including the SSR (no-window) path.
+      Specifically (eng-review 2026-06-13): assert `isChromium`/`canRefract` are
+      TRUE for Chrome AND Edge UAs (with backdrop-filter supported), and FALSE for
+      Safari/WebKit and Firefox UAs — locking the positive-Blink gate so 010's
+      per-engine expectations hold.
 - [ ] `docs/PARITY.md` documents: supported props (mapped to upstream), expected
       full-effect behavior, expected degraded behavior per browser, and explicit
       non-goals (e.g. no WebGL, no pixel-perfect match to upstream).
@@ -49,8 +58,10 @@ consumers importing types and the `useGlassCapabilities` hook.
 ## Design
 
 Types and capabilities are the load-bearing contracts. `canRefract` is the single
-gate later plans consult: `supportsBackdropFilter && supportsSvgBackdropDisplacement
-&& !isFirefox`. Detection must never throw during SSR.
+gate later plans consult: `supportsBackdropFilter && supportsSvgBackdropDisplacement`,
+where `supportsSvgBackdropDisplacement` is derived from POSITIVE Blink detection
+(`isChromium`), not a negative `!isFirefox` exclusion (see the decision below).
+Detection must never throw during SSR.
 
 **Files expected to change:**
 
@@ -60,15 +71,20 @@ gate later plans consult: `supportsBackdropFilter && supportsSvgBackdropDisplace
   `CSS.supports('-webkit-backdrop-filter','blur(1px)')` for
   `supportsBackdropFilter`; Firefox UA check for `isFirefox`; `matchMedia(
   '(prefers-reduced-motion: reduce)')` for `prefersReducedMotion`).
-  **Decision — `supportsSvgBackdropDisplacement`:** there is no standardized
-  `CSS.supports` probe for "an SVG `feDisplacementMap` applied via `filter:`
-  composites over `backdrop-filter`" (it is a Chromium rendering-pipeline quirk,
-  not a CSS feature). Use the inference `supportsBackdropFilter && !isFirefox`
-  (Firefox explicitly breaks it; Safari/WebKit silently fail — both are excluded
-  by the broader fallback). Therefore `canRefract = supportsSvgBackdropDisplacement
-  = supportsBackdropFilter && !isFirefox` (spelled out so the backdrop-filter factor
-  is never dropped). Document this inference in `docs/PARITY.md` so it is a known, revisitable
-  assumption rather than hidden magic.
+  **Decision (eng-review 2026-06-13) — `supportsSvgBackdropDisplacement` via POSITIVE
+  Blink detection:** there is no standardized `CSS.supports` probe for "an SVG
+  `feDisplacementMap` applied via `filter:` composites over `backdrop-filter`" (it is
+  a Chromium rendering-pipeline quirk, not a CSS feature). A negative
+  `supportsBackdropFilter && !isFirefox` inference is WRONG because Safari/WebKit
+  supports `-webkit-backdrop-filter` and is not Firefox, so it would be admitted to
+  the full-effect tier — but Safari does NOT composite the displacement filter and
+  must degrade. Instead add `isChromium` (positive Blink-family detection:
+  Chrome/Edge/Brave/Opera; explicitly NOT Firefox, NOT Safari/WebKit) and define
+  `supportsSvgBackdropDisplacement = isChromium`. Therefore
+  `canRefract = supportsBackdropFilter && isChromium`. This matches the
+  "Chromium-only refraction" intent verbatim and makes 010's Firefox+WebKit
+  "no filter applied" assertions pass by construction. Document this inference (and
+  its UA-sniffing fragility) in `docs/PARITY.md` as a known, revisitable assumption.
 - `src/use-glass-capabilities.ts`: client-only hook (useState + useEffect).
 - `src/capabilities.test.ts`: mocked-environment unit tests incl. SSR path.
 - `src/index.ts`: export types, `detectGlassCapabilities`, `useGlassCapabilities`.

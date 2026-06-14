@@ -44,8 +44,12 @@ Status legend: 🔵 not started · 🟡 in progress · ✅ done
 - **Depends on:** 001 (build), 011 (release/CI).
 - **Effort:** human ~2h / CC ~15 min.
 
-### 🔵 T3 — Visual-regression baseline
-- **What:** Pixel-diff baselines for the rendered effect (Playwright `toHaveScreenshot`
+### ✅ T3 — Visual-regression baseline (PULLED IN-SCOPE → plan 010, eng-review 2026-06-13)
+- **Resolved:** Promoted from deferred to a release-blocking pinned-Chromium
+  `toHaveScreenshot` pixel-diff on the Showcase story in plan 010 (Codex outside-voice:
+  for a visual-first library, "is the effect visible" must be gated, not deferred).
+  Heavier Storybook+Chromatic remains a possible future upgrade but is not needed.
+- **What (original):** Pixel-diff baselines for the rendered effect (Playwright `toHaveScreenshot`
   or Storybook + Chromatic), so changes to the SVG filter math or CSS can't silently
   regress the look.
 - **Why:** Plan 010 captures screenshots "for evidence" but explicitly scopes out a
@@ -69,6 +73,19 @@ Status legend: 🔵 not started · 🟡 in progress · ✅ done
   currently scopes it presentational (`as` defaults to `'div'`, consumer owns a11y for
   interactive elements). Promote this TODO only if that stance changes.
 - **Depends on:** 007 (GlassCard `as` behavior), 010 (Playwright harness).
+- **Effort:** human ~1h / CC ~10 min.
+
+### 🔵 T5 — WebKit elastic-motion E2E coverage
+- **What:** An `e2e/interaction.spec.ts` assertion that pointer-move changes the glass
+  `transform` in WebKit (not just Chromium + Firefox).
+- **Why:** Plan 010 asserts the elastic transform change only in "at least Chromium and
+  Firefox". Motion is pure CSS transform (so it should work in WebKit) and is unit-tested
+  via `motion.ts`, but the library's headline promise is "works everywhere" and WebKit
+  motion is the one cross-browser behavior with no E2E proof.
+- **Context:** Plan 010 already drives WebKit for refraction-fallback + a11y; adding the
+  pointer-move transform assertion to the WebKit project is a few lines. Deferred to avoid
+  widening 010 mid-backlog. (eng-review 2026-06-13)
+- **Depends on:** 010 (Playwright harness).
 - **Effort:** human ~1h / CC ~10 min.
 
 ---

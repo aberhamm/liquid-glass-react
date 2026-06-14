@@ -42,6 +42,14 @@ backdrop refract at the glass edges in Chrome.
       SDF modes) and is the lightest-weight mode. The `displacementScale` and
       `aberration` controls still apply; `feTurbulence` `baseFrequency` defaults to
       ~`0.015` (tunable) and is independent of `displacementScale`.
+- [ ] Element measurement is REQUIRED, not optional (eng-review 2026-06-13,
+      Codex outside-voice): the component measures its own rendered size via a ref +
+      `ResizeObserver` (rAF-throttled, dimensions quantized per 003's grid), and those
+      measured dims feed BOTH `getDisplacementMap(mode, w, h)` AND the SVG filter
+      region. Until measured (SSR + first client paint) it uses a safe default and
+      attaches no filter — so there is never a guessed/stale/zero-dimension map. This
+      is the committed source of truth for size; the `objectBoundingBox` discussion
+      below remains a separate, optional coordinate-space refinement.
 - [ ] The glass surface applies `backdrop-filter: blur(...) saturate(...)` derived
       from `blurAmount`/`saturation`/`overLight`, plus `filter: url(#id)` ONLY
       when `canRefract` is true.
@@ -55,7 +63,9 @@ backdrop refract at the glass edges in Chrome.
 - [ ] Unit tests assert prop→style/attribute mapping: filter present when
       `canRefract` mocked true and absent when false; correct channel selectors;
       aberration offsets scale with `aberrationIntensity`; backdrop-filter string
-      reflects blur/saturation/overLight.
+      reflects blur/saturation/overLight; and (eng-review 2026-06-13) `overLight`
+      true HALVES the effective `displacementScale` versus `overLight` false — assert
+      the halving explicitly, not just the blur change.
 
 ## Design
 
@@ -78,16 +88,25 @@ white:** because each pass is isolated to a single channel, sum them with
 rather than naive `feBlend mode="screen"` on full-color copies, which
 over-brightens. The edge mask (radial gradient + `feComponentTransfer`) confines
 the warp to the rim. Filter id must be unique per mounted instance (use
-`useId()`) so multiple glasses on a page don't collide.
+`useId()`) so multiple glasses on a page don't collide. **Sanitize the id**
+(eng-review 2026-06-13): `useId()` returns colon-wrapped strings like `:r0:`;
+colons are invalid in CSS selectors and a long-standing SVG-filter footgun. Derive
+the filter id as `` `lg-${useId().replace(/:/g, '')}` `` so it is safe for
+`filter: url(#id)`, `getElementById`, AND `querySelector('#id')` — never reference
+the raw colon-bearing id, and tests may query by `#id` safely.
 
-**Application mechanism — spike, then pick one:** two ways to apply the filter
-exist. (a) Our default: a backdrop `<span>` with `backdrop-filter: blur()
-saturate()` PLUS `filter: url(#id)`. (b) Reference the SVG filter directly in
-`backdrop-filter: url(#id)` (no separate span). (b) is cleaner when it works but
-has the same Chromium-only constraint and slightly different support edges.
-Spike both early in Chromium; keep (a) as the safe default unless (b) renders
-identically. Either way `canRefract` gates whether the filter is attached, so the
-cross-browser story (006) is unchanged.
+**Application mechanism — committed default flipped (eng-review 2026-06-13, Codex
+outside-voice):** two ways to apply the filter exist. (b) **The committed default:**
+reference the SVG filter directly via `backdrop-filter: url(#id) blur() saturate()`
+(no separate foreground-filtered span). This is the MDN-documented path for applying
+an SVG filter to the backdrop and is what the shuding reference implementation uses.
+(a) **Fallback:** a backdrop `<span>` with `backdrop-filter: blur() saturate()` PLUS a
+foreground `filter: url(#id)`. (a) is now the FALLBACK, not the default, because a
+foreground `filter:` establishes a backdrop-root compositing boundary that can make
+the backdrop effect render incorrectly. Spike (b) early in Chromium; only fall back to
+(a) if (b) demonstrably cannot carry the full `feImage`+`feDisplacementMap`+aberration
+graph as a backdrop-filter value. Either way `canRefract` gates whether the filter is
+attached, so the cross-browser story (006) is unchanged.
 
 **Files expected to change:**
 

@@ -2,7 +2,7 @@
 id: 010
 title: Playwright cross-browser E2E suite
 status: pending
-blocked-by: [009, 012]
+blocked-by: [009]
 priority:
 goal: liquid-glass-component-library
 allows-migrations: false
@@ -29,7 +29,13 @@ green Playwright = the library genuinely works everywhere.
       webkit; a webServer/fixture that serves `storybook-static` (owns the serve
       step — does not assume a server is already running).
 - [ ] Chromium test: on the Showcase story, the LiquidGlass instance has the SVG
-      `filter: url(...)` applied (refraction active) and a baseline screenshot.
+      filter applied (refraction active) AND a BLOCKING pinned-Chromium pixel-diff
+      (eng-review 2026-06-13, Codex outside-voice): `toHaveScreenshot` against a
+      committed baseline of the Showcase glass region, with a small pixel tolerance,
+      pinned to one Chromium so it is deterministic. This is a release-blocking check,
+      not "evidence" — DOM wiring (`filter` attached) does NOT prove the effect is
+      visible; a neutral/identity map, wrong channel/coord space, clipped region, or
+      compositing no-op must FAIL here. (Closes TODO T3 by pulling it in-scope.)
 - [ ] Firefox + WebKit tests: the component renders the fallback (no SVG filter
       applied), the glass box has non-zero dimensions (no broken/empty box), and
       the page logs zero `console.error`/pageerror — and this passing state IS the
@@ -44,11 +50,13 @@ green Playwright = the library genuinely works everywhere.
       of either generation path.
 - [ ] `GlassButton` test: keyboard focus + activation works (a11y-level check) in
       all three engines.
-- [ ] `GlassSegmentedControl` test (012): in all three engines, arrow-key/click
-      selection moves the glass indicator to the chosen option (assert the
-      indicator's transform/position changed), the radiogroup is keyboard
-      operable, and there are zero console errors — degradation (refraction absent
-      in Firefox/WebKit) is the pass criterion, same as the primitive.
+- [ ] (DECOUPLED — eng-review 2026-06-13, Codex outside-voice) The
+      `GlassSegmentedControl` cross-browser E2E is NO LONGER part of this plan. 010
+      now proves only the primitive + GlassButton + GlassCard so the core
+      cross-browser gate is not entangled with the newest component. 012 owns its own
+      Playwright spec (`e2e/glass-segmented-control.spec.ts`) and depends on THIS
+      plan's harness. This plan sets up `playwright.config.ts` (the shared harness 012
+      reuses) but does not gate on the control.
 - [ ] `pnpm e2e` runs the suite headless and is wired into CI (extended in 011);
       screenshots are written to a reports dir.
 
@@ -74,8 +82,8 @@ in 011's CI, not asserted as a local gate here.
   assertions with console/pageerror guards.
 - `e2e/interaction.spec.ts`: pointer-move elastic transform change.
 - `e2e/glass-button.spec.ts`: keyboard focus/activation across engines.
-- `e2e/glass-segmented-control.spec.ts`: arrow/click selection moves the indicator,
-  keyboard operability, zero console errors, across engines.
+  (`e2e/glass-segmented-control.spec.ts` is owned by 012, not this plan — see the
+  decoupling note above; 012 reuses this plan's `playwright.config.ts`.)
 - `package.json`: `e2e` / `e2e:ui` scripts + `@playwright/test` devDep.
 - `.gitignore`: playwright report/output dirs.
 
@@ -99,9 +107,8 @@ infra beyond simple screenshots.
    passing = degradation verified).
 3. Write `e2e/interaction.spec.ts`: pointer move changes the glass `transform`.
 4. Write `e2e/glass-button.spec.ts`: keyboard focus + Enter/Space activation per engine.
-   Write `e2e/glass-segmented-control.spec.ts`: arrow/click selection moves the glass
-   indicator (assert its transform/position changed), keyboard operability, zero
-   console errors, across all three engines.
+   (The `GlassSegmentedControl` E2E is owned by 012, which reuses this plan's
+   `playwright.config.ts` — see the decoupling note in the acceptance criteria.)
 5. Add `e2e` scripts; ensure the suite builds Storybook first and runs headless.
 6. Run the full suite green across all three engines.
 

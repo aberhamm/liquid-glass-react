@@ -2,7 +2,7 @@
 id: 012
 title: GlassSegmentedControl (liquid toggle)
 status: pending
-blocked-by: [007, 008]
+blocked-by: [007, 008, 010]
 priority:
 goal: liquid-glass-component-library
 allows-migrations: false
@@ -40,10 +40,16 @@ gets an accessible toggle with a liquid glass indicator.
       active option. Its width and x-offset MATCH the active option element's
       measured `getBoundingClientRect` relative to the container (so unequal-width
       options — e.g. icon-only vs long label — are handled, not just equal
-      segments), recomputed via a `ResizeObserver` on the container. On selection
+      segments), recomputed via a `ResizeObserver` on the container (rAF-throttled
+      so a resize storm coalesces to one recompute per frame). **Measurement
+      runs in an effect (`useLayoutEffect`/`useEffect`) after mount, NEVER during
+      render** (eng-review 2026-06-13): server + first client paint render the
+      indicator at an SSR-stable default so hydration matches, then the effect
+      measures and positions it. On selection
       change it animates via `transform: translateX(...)` (+ width) from the
       previous to the new option — the liquid slide — and respects
-      `prefers-reduced-motion` (snap, no transition). The component exposes a
+      `prefers-reduced-motion` (snap, no transition) via the shared
+      `useReducedMotion()`. The component exposes a
       deterministic DOM signal of the active index (e.g. a `data-selected-index`
       attribute or the indicator's inline `transform`/`width`) so tests can assert
       the indicator moved.
@@ -62,6 +68,19 @@ gets an accessible toggle with a liquid glass indicator.
       "indicator moves" test asserts the deterministic DOM signal (e.g.
       `data-selected-index` or the indicator's inline `transform`) DIFFERS between
       two selection states — not just that the suite renders.
+- [ ] Hydration test (eng-review 2026-06-13): mirror 006's approach —
+      `renderToString()` (`react-dom/server`) then `hydrateRoot()` on that markup
+      with a `console.error` spy, asserting NO hydration-mismatch warning. Proves
+      the measured indicator's SSR-stable default matches the first client paint
+      before the measurement effect runs.
+- [ ] Cross-browser E2E owned HERE (eng-review 2026-06-13, decoupled from 010):
+      `e2e/glass-segmented-control.spec.ts` reuses 010's `playwright.config.ts`
+      (hence `blocked-by: 010`) and asserts, in all three engines, that arrow-key/
+      click selection moves the glass indicator (the indicator's transform/position
+      DIFFERS after selection), the radiogroup is keyboard operable, and there are
+      zero console errors — degradation (refraction absent in Firefox/WebKit) is the
+      pass criterion, same as the primitive. This keeps the control's E2E off the
+      core cross-browser gate (010) while still proving it before release (011).
 
 ## Design
 
@@ -85,16 +104,22 @@ screen-reader semantics for free — no custom ARIA/roving-tabindex needed.
 - `src/components.css` (extend): segmented-control + indicator styles, reusing the
   inset-shadow edge tokens.
 - `src/index.ts`: export the component + its types.
+- `e2e/glass-segmented-control.spec.ts`: the cross-browser E2E (reuses 010's
+  `playwright.config.ts`) — indicator slide on selection, keyboard operability,
+  zero console errors, degradation pass, across chromium/firefox/webkit.
 
 **Testing approach:** browser-based — interactive control; semantics/state via
 Vitest + RTL now, real slide + keyboard + cross-browser via the story (here) and
-Playwright (010, which depends on this plan).
+this plan's OWN Playwright spec `e2e/glass-segmented-control.spec.ts` (reusing 010's
+harness — eng-review 2026-06-13 decoupled the control's E2E into 012 so it no longer
+gates the core 010 suite).
 
-**Out of scope:** the Playwright E2E for this control (owned by 010, which is
-blocked-by this plan), release docs (011), additional components beyond the
-segmented control, a generic Tabs/Menu system. No new runtime dependencies; do
-NOT pull in Radix or a headless-UI library — reuse the internal Slot + native
-radios.
+**Out of scope:** the Playwright HARNESS/config itself (owned by 010 — this plan
+reuses 010's `playwright.config.ts` and adds only its own spec file; eng-review
+2026-06-13 decoupled the control's E2E into THIS plan so it doesn't gate the core
+010 suite), release docs (011), additional components beyond the segmented control,
+a generic Tabs/Menu system. No new runtime dependencies; do NOT pull in Radix or a
+headless-UI library — reuse the internal Slot + native radios.
 
 ## Tasks
 
@@ -110,6 +135,9 @@ radios.
 5. Export the component + types; write `src/glass-segmented-control.test.tsx`.
 6. Add `src/glass-segmented-control.stories.tsx` (variants + theme-switcher
    example); run typecheck/lint/test + `build-storybook`.
+7. Write `e2e/glass-segmented-control.spec.ts` reusing 010's `playwright.config.ts`
+   (indicator slide on selection, keyboard operability, zero console errors,
+   degradation pass, across all three engines); run it green.
 
 ## Verification
 
@@ -119,5 +147,7 @@ Checks:
 - [cmd] `pnpm test -- glass-segmented-control`
 - [assert] `pnpm test -- glass-segmented-control 2>&1 | tail -6` contains `pass`
 - [cmd] `pnpm build-storybook`
+- [cmd] `pnpm e2e -- glass-segmented-control` (reuses 010's harness; runs all three engines)
+- [assert] `pnpm e2e -- glass-segmented-control 2>&1 | tail -15` contains `passed`
 - [browse] start `pnpm storybook` and verify the GlassSegmentedControl story: clicking/arrow-keying between options slides the glass indicator to the selected option, keyboard selection works, and there are no console errors; then stop the dev server
 - [manual] In Firefox/Safari, confirm the slide + glass edge render cleanly (refraction gracefully absent) with no layout break.

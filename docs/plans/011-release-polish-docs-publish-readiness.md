@@ -2,7 +2,7 @@
 id: 011
 title: Release polish — docs, publish readiness, extended CI
 status: pending
-blocked-by: [010]
+blocked-by: [010, 012]
 priority:
 goal: liquid-glass-component-library
 allows-migrations: false
@@ -34,6 +34,9 @@ browser matrix, install it, and the types/imports just work.
       `docs/PARITY.md`.
 - [ ] `npm pack` (dry-run) ships only `dist/` (+ README/LICENSE) — no `src`,
       tests, stories, Storybook, or e2e files; verified via `npm pack --dry-run`.
+      AND (eng-review 2026-06-13) positively asserts the components' built CSS file
+      (007's `./styles.css` subpath target) IS present in the tarball and resolves via
+      the `exports` map — guarding the sideEffects/CSS-drop footgun end to end.
 - [ ] Published types validated: a type-level smoke check imports the package's
       built `.d.ts` and exercises the public API with no type errors
       (e.g. `tsc` against a tiny consumer fixture or `@arethetypeswrong/cli`).
