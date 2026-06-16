@@ -1,7 +1,7 @@
 ---
 id: 002
 title: Public API types, capability detection, and parity spec
-status: pending
+status: in-progress
 blocked-by: [001]
 priority:
 goal: liquid-glass-component-library
