@@ -1,7 +1,7 @@
 ---
 id: 006
 title: Graceful degradation fallback and SSR safety
-status: pending
+status: in-progress
 blocked-by: [004, 005]
 priority:
 goal: liquid-glass-component-library
