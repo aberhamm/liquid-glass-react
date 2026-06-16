@@ -1,0 +1,218 @@
+/*
+ * Shipped stylesheet for the prebuilt components (plan 007):
+ * <GlassButton> and <GlassCard>.
+ *
+ * Consumers import this once:
+ *   import '@aberhamm/liquid-glass-react/styles.css';
+ *
+ * Design constraints:
+ *   - ZERO Tailwind / design-token assumptions: every value is self-contained.
+ *   - The beveled rim is NOT re-hardcoded here. `glass-edge.ts` is the single
+ *     source of truth; the components set `--lg-edge-shadow` inline (from those
+ *     exported strings) and this stylesheet only references var(--lg-edge-shadow).
+ *   - Stable `lg-` class prefix to avoid colliding with host-app classes.
+ *   - Decorative glass layers are marked aria-hidden in the COMPONENTS, not here.
+ */
+
+/* ------------------------------------------------------------------ *
+ * Shared content-legibility foreground treatment.
+ * Keeps `children` readable over a LIGHT or DARK backdrop: a near-black
+ * default ink with a faint light text-shadow "scrim" lifts text off busy
+ * glass without committing to a theme. Consumers override via color/etc.
+ * ------------------------------------------------------------------ */
+.lg-content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  color: var(--lg-fg, rgba(17, 17, 19, 0.92));
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.45);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+@media (prefers-color-scheme: dark) {
+  .lg-content {
+    color: var(--lg-fg, rgba(245, 245, 247, 0.94));
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  }
+}
+
+/* ================================================================== *
+ * Button
+ * ================================================================== */
+
+.lg-button {
+  /* The interactive shell sits ON the LiquidGlass wrapper. Reset native
+     button chrome; the glass primitive owns background/shape/shadow. */
+  position: relative;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  margin: 0;
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  /* Apply the foreground ink on the shell too, so the legibility treatment also
+     covers `asChild` (where the child element IS the shell and there is no inner
+     .lg-content span). The default-render inner span re-inherits the same value. */
+  color: var(--lg-fg, rgba(17, 17, 19, 0.92));
+  text-decoration: none;
+  /* Let the glass shape clip the press-shine sweep to the rounded corners. */
+  border-radius: inherit;
+  transition: filter 160ms ease, opacity 160ms ease;
+}
+
+.lg-button:hover:not(:disabled) {
+  filter: brightness(1.04);
+}
+
+/* Focus ring: a 2px offset outline tuned for a translucent surface. We do NOT
+   remove the outline — :focus-visible draws a high-contrast, double-layered
+   ring readable on both light and dark glass. */
+.lg-button:focus-visible {
+  outline: 2px solid var(--lg-focus-ring, rgba(60, 130, 255, 0.9));
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(60, 130, 255, 0.25);
+}
+
+.lg-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  filter: saturate(0.7);
+}
+
+/* --- The press-shine sweep ----------------------------------------- *
+ * A brief diagonal highlight that wipes across on :active. Implemented as a
+ * pseudo-element so it never affects layout and is purely decorative. It is
+ * clipped to the content box's rounded corners. Suppressed under reduced motion.
+ */
+.lg-button[data-shine="true"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    rgba(255, 255, 255, 0) 30%,
+    rgba(255, 255, 255, 0.55) 50%,
+    rgba(255, 255, 255, 0) 70%
+  );
+  background-size: 250% 100%;
+  background-position: 150% 0;
+  opacity: 0;
+}
+
+.lg-button[data-shine="true"]:active:not(:disabled)::after {
+  animation: lg-shine 480ms ease-out;
+}
+
+@keyframes lg-shine {
+  0% {
+    background-position: 150% 0;
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    background-position: -50% 0;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lg-button[data-shine="true"]:active:not(:disabled)::after {
+    animation: none;
+  }
+}
+
+/* --- Button variants (foreground/ink tuning only; glass shape is in JS) --- */
+.lg-button--primary {
+  --lg-fg: rgba(255, 255, 255, 0.98);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.lg-button--secondary {
+  --lg-fg: rgba(20, 22, 28, 0.92);
+}
+
+.lg-button--subtle {
+  --lg-fg: rgba(40, 42, 50, 0.82);
+  font-weight: 500;
+}
+
+@media (prefers-color-scheme: dark) {
+  .lg-button--secondary {
+    --lg-fg: rgba(240, 242, 248, 0.94);
+  }
+  .lg-button--subtle {
+    --lg-fg: rgba(225, 227, 235, 0.85);
+  }
+}
+
+/* --- Button sizes (typography only; padding/radius come from LiquidGlass) --- */
+.lg-button--sm {
+  font-size: 0.8125rem;
+}
+.lg-button--md {
+  font-size: 0.9375rem;
+}
+.lg-button--lg {
+  font-size: 1.0625rem;
+}
+
+/* `icon` is a square button that centers a single icon child. */
+.lg-button--icon {
+  font-size: 1rem;
+}
+.lg-button--icon .lg-content {
+  width: 1.25em;
+  height: 1.25em;
+  gap: 0;
+}
+
+/* ================================================================== *
+ * Card
+ * ================================================================== */
+
+.lg-card {
+  position: relative;
+  display: block;
+  border-radius: inherit;
+}
+
+/* Card content gets the same legibility treatment but block-flowed (not the
+   inline-flex centering the button uses). */
+.lg-card .lg-content {
+  display: block;
+  text-align: left;
+  text-shadow: none;
+  color: var(--lg-fg, rgba(20, 22, 28, 0.9));
+}
+
+@media (prefers-color-scheme: dark) {
+  .lg-card .lg-content {
+    color: var(--lg-fg, rgba(238, 240, 246, 0.92));
+  }
+}
+
+/* Elevation knob: stacks an extra ambient shadow under the card for lift. */
+.lg-card--flat {
+  --lg-card-lift: none;
+}
+.lg-card--raised {
+  --lg-card-lift: 0 10px 30px rgba(0, 0, 0, 0.16);
+}
+.lg-card--floating {
+  --lg-card-lift: 0 22px 60px rgba(0, 0, 0, 0.24);
+}
+.lg-card[data-elevation]:not(.lg-card--flat) {
+  filter: drop-shadow(var(--lg-card-lift, none));
+}

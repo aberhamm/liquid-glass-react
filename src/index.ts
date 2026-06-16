@@ -26,6 +26,21 @@ export { getDisplacementMap, roundedRectSDF, smoothStep } from './displacement';
 
 export { LiquidGlass } from './liquid-glass';
 
+// Prebuilt batteries-included components (plan 007). They import
+// './components.css', so the build emits the stylesheet. Consumers must import
+// it once: `import '@aberhamm/liquid-glass-react/styles.css';`
+export {
+  GlassButton,
+  type GlassButtonProps,
+  type GlassButtonVariant,
+  type GlassButtonSize,
+} from './glass-button';
+export {
+  GlassCard,
+  type GlassCardProps,
+  type GlassCardElevation,
+} from './glass-card';
+
 // Motion + rim-lighting surface (plan 005). Exported for advanced consumers who
 // coordinate motion externally or reuse the bevel.
 export { useReducedMotion } from './use-reduced-motion';

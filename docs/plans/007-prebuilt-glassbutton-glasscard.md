@@ -1,13 +1,16 @@
 ---
 id: 007
 title: Prebuilt GlassButton and GlassCard components
-status: in-progress
+status: done
 blocked-by: [006]
 priority:
 goal: liquid-glass-component-library
 allows-migrations: false
 needs-review: none
 created: 2026-06-13
+completed: 2026-06-16
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -146,3 +149,31 @@ Checks:
 - [cmd] `pnpm test -- glass-card`
 - [assert] `pnpm test 2>&1 | tail -6` contains `pass`
 - [manual] Tab to a GlassButton and activate with Enter/Space; confirm visible focus ring and that disabled blocks activation.
+
+## Implementation Notes
+
+Shipped `<GlassButton>` and `<GlassCard>` on `<LiquidGlass>` with zero new deps. Vite lib
+mode emits the stylesheet as `dist/liquid-glass-react.css`; added a `"./styles.css"`
+exports subpath (consumer import: `import '@aberhamm/liquid-glass-react/styles.css'`) —
+verified non-empty (2.72 kB) with component classes present and the subpath resolving.
+`asChild` polymorphism uses an internal ~30-line `Slot` (cloneElement +
+className/style/handler/ref merge with `mergeRefs`), NOT `@radix-ui/react-slot`; variants
+resolved by a tiny standalone `variants()`/`cx()` (no class-variance-authority). The bevel
+stays DRY: components set `--lg-edge-shadow` inline from `glass-edge.ts` and the CSS
+references `var(--lg-edge-shadow)`. Review fixed an asChild foreground-legibility finding.
+18 new RTL tests; 105 total, no 004/005/006 regression. Health PASS 9.1 (lint 7/10 from two
+justified `biome-ignore`s; `biome check .` exits clean).
+
+**Files changed:**
+
+- `src/index.ts` (modified)
+- `package.json` (modified — added `./styles.css` exports subpath)
+- `src/slot.tsx` (created)
+- `src/variants.ts` (created)
+- `src/components.css` (created)
+- `src/glass-button.tsx` (created)
+- `src/glass-card.tsx` (created)
+- `src/glass-button.test.tsx` (created)
+- `src/glass-card.test.tsx` (created)
+
+**Commit:** `44af5ab` — feat(components): GlassButton and GlassCard with internal Slot + own CSS
