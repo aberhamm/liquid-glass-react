@@ -1,7 +1,7 @@
 ---
 id: 008
 title: Storybook 8 setup and Vite config reconciliation
-status: pending
+status: in-progress
 blocked-by: [007]
 priority:
 goal: liquid-glass-component-library
