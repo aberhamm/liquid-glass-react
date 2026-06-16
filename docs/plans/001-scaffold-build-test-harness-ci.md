@@ -1,13 +1,16 @@
 ---
 id: 001
 title: Scaffold package, Vite library build, test harness, and CI
-status: in-progress
+status: done
 blocked-by: []
 priority:
 goal: liquid-glass-component-library
 allows-migrations: false
 needs-review: none
 created: 2026-06-13
+completed: 2026-06-16
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -104,3 +107,39 @@ Checks:
 - [assert] `node -e "const p=require('./package.json');process.stdout.write(p.exports['.'].import)"` outputs a path containing `dist/index.mjs`
 - [cmd] `test -f dist/index.mjs && test -f dist/index.cjs && test -f dist/index.d.ts`
 - [manual] Confirm `react`/`react-dom` appear only under `peerDependencies`, not `dependencies`.
+
+## Implementation Notes
+
+Scaffolded the greenfield `@aberhamm/liquid-glass-react` package: Vite library-mode
+build emitting `dist/index.mjs` (ESM), `dist/index.cjs` (CJS), and a bundled
+`dist/index.d.ts` via `vite-plugin-dts` (`rollupTypes`). `package.json` has the correct
+`exports` map (types/import/require), top-level main/module/types, `files: ["dist"]`,
+`sideEffects: ["**/*.css"]`, react/react-dom as `peerDependencies` only (zero runtime
+deps), and `publishConfig.access: public`. tsconfig is strict with jsx react-jsx and
+moduleResolution bundler; a separate `vitest.config.ts` runs jsdom + globals +
+`@testing-library/jest-dom` setup with a passing smoke test on the VERSION placeholder.
+Biome handles lint/format; GitHub Actions CI runs install→lint→typecheck→test→build on
+Node 22 via corepack/pnpm with caching. Health 9.1/10, verification 7/7.
+
+Deviations (all minor/additive): used `vite-plugin-dts` (plan's preferred option) for
+`.d.ts` emit; added `packageManager` + `pnpm.onlyBuiltDependencies` allowlist (esbuild,
+biome) for pnpm v10 native postinstall + deterministic corepack; added
+`@testing-library/dom` devDep (peer of `@testing-library/react`); forced ESM filename to
+`index.mjs` in vite.config.ts.
+
+**Files changed:**
+
+- `package.json` (created)
+- `pnpm-lock.yaml` (created)
+- `tsconfig.json` (created)
+- `vite.config.ts` (created)
+- `vitest.config.ts` (created)
+- `vitest.setup.ts` (created)
+- `biome.json` (created)
+- `.npmrc` (created)
+- `README.md` (created)
+- `src/index.ts` (created)
+- `src/index.test.ts` (created)
+- `.github/workflows/ci.yml` (created)
+
+**Commit:** `937d8fc` — chore(scaffold): Vite library build, Vitest harness, Biome, CI
