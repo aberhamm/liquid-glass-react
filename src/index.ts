@@ -23,3 +23,5 @@ export {
 export { useGlassCapabilities } from './use-glass-capabilities';
 
 export { getDisplacementMap, roundedRectSDF, smoothStep } from './displacement';
+
+export { LiquidGlass } from './liquid-glass';

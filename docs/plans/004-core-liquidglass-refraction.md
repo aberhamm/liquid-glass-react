@@ -1,13 +1,16 @@
 ---
 id: 004
 title: Core <LiquidGlass> refraction component
-status: in-progress
+status: done
 blocked-by: [002, 003]
 priority:
 goal: liquid-glass-component-library
 allows-migrations: false
 needs-review: none
 created: 2026-06-13
+completed: 2026-06-16
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -153,3 +156,31 @@ Checks:
 - [cmd] `pnpm test -- liquid-glass`
 - [assert] `pnpm test -- liquid-glass 2>&1 | tail -5` contains `pass`
 - [manual] In a Chromium DevTools render, confirm the backdrop visibly refracts at the glass edge (full visual check happens in 009/010).
+
+## Implementation Notes
+
+Built `<LiquidGlass>` with full content isolation (children in a sibling
+`[data-lg-content]` layer, never under the filter-carrying glass surface). Application
+mechanism is the committed default: `backdrop-filter: url(#id) blur() saturate()` on the
+surface, with `url(#id)` attached only when `canRefract` AND a non-zero measured size
+resolve. Measurement uses a one-shot `getBoundingClientRect()` on mount (works in
+jsdom/SSR) plus a rAF-throttled `ResizeObserver` for live resizes, quantized to a 16px
+grid. Filter graph uses `userSpaceOnUse`, R/B channel selectors, three single-channel
+aberration passes recombined additively via `feComposite operator="arithmetic" k2=1
+k3=1`, a radial edge mask, and a small blur; turbulence mode takes the procedural
+`feTurbulence` path with no feImage/data-URL. Filter id is colon-sanitized from
+`useId()`. Review fixed a real bug where `quantize()` floored a 0×0 rect into a bogus
+16×16 cell. Health PASS 9.1, 18 component tests.
+
+Deviation: lint is Biome (not ESLint) — the inert `elasticity` motion prop is
+underscore-aliased and the forwarded `onClick` carries a justified `biome-ignore` for the
+a11y key-handler rule (the primitive forwards onClick but is not inherently a button).
+
+**Files changed:**
+
+- `src/index.ts` (modified)
+- `vitest.setup.ts` (modified — added ResizeObserver stub for jsdom)
+- `src/liquid-glass.tsx` (created)
+- `src/liquid-glass.test.tsx` (created)
+
+**Commit:** `2872d6d` — feat(liquid-glass): core <LiquidGlass> refraction primitive
