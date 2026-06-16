@@ -1,7 +1,7 @@
 ---
 id: 011
 title: Release polish — docs, publish readiness, extended CI
-status: pending
+status: in-progress
 blocked-by: [010, 012]
 priority:
 goal: liquid-glass-component-library
