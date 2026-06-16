@@ -1,7 +1,7 @@
 ---
 id: 007
 title: Prebuilt GlassButton and GlassCard components
-status: pending
+status: in-progress
 blocked-by: [006]
 priority:
 goal: liquid-glass-component-library
