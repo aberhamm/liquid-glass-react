@@ -1,13 +1,16 @@
 ---
 id: 012
 title: GlassSegmentedControl (liquid toggle)
-status: in-progress
+status: done
 blocked-by: [007, 008, 010]
 priority:
 goal: liquid-glass-component-library
 allows-migrations: false
 needs-review: none
 created: 2026-06-13
+completed: 2026-06-16
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -151,3 +154,36 @@ Checks:
 - [assert] `pnpm e2e -- glass-segmented-control 2>&1 | tail -15` contains `passed`
 - [browse] start `pnpm storybook` and verify the GlassSegmentedControl story: clicking/arrow-keying between options slides the glass indicator to the selected option, keyboard selection works, and there are no console errors; then stop the dev server
 - [manual] In Firefox/Safari, confirm the slide + glass edge render cleanly (refraction gracefully absent) with no layout break.
+
+## Implementation Notes
+
+Built `<GlassSegmentedControl>` as a NATIVE radiogroup (`<fieldset>`/`<legend>` +
+visually-hidden `<input type="radio">`s sharing one `useId` name), so Arrow/Home/End/Space
+keyboard nav + screen-reader semantics come for free with zero roving-tabindex. The
+sliding `<LiquidGlass>` indicator measures the active option's `getBoundingClientRect` in a
+layout effect AFTER mount (never in render) via an isomorphic-layout-effect + rAF-throttled
+container ResizeObserver, while server + first client paint use a CSS-only equal-segment
+default (`translateX(activeIndex*100%)` over a `(100/n)%`-wide box) so hydration matches —
+the renderToString → hydrateRoot test passes. Indicator-moved signal is the inline
+`transform` + `data-selected-index` (asserted to DIFFER between selections in unit + E2E).
+Cross-engine E2E (chromium/firefox/webkit) all green: 4 tests × 3 engines (semantics,
+slide, real arrow-key selection, zero console errors; refraction gracefully absent in
+FF/WebKit is the pass criterion). Review fixed RO re-subscription churn (stable single
+subscription). Reuses variants resolver, --lg-edge-shadow, useReducedMotion, components.css.
+Health PASS 9.1.
+
+Deviation: a benign "useLayoutEffect does nothing on the server" warning surfaces only
+inside the jsdom hydration test (jsdom defines window, so the isomorphic helper picks
+useLayoutEffect during renderToString); it does not occur in real Node SSR and the
+hydration-mismatch assertion still passes.
+
+**Files changed:**
+
+- `src/components.css` (modified — segmented-control + indicator styles)
+- `src/index.ts` (modified — export GlassSegmentedControl + props)
+- `src/glass-segmented-control.tsx` (created)
+- `src/glass-segmented-control.test.tsx` (created)
+- `src/glass-segmented-control.stories.tsx` (created)
+- `e2e/glass-segmented-control.spec.ts` (created — reuses 010's playwright.config.ts)
+
+**Commit:** `04c923f` — feat(segmented): GlassSegmentedControl liquid toggle

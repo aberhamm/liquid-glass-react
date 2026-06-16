@@ -216,3 +216,206 @@
 .lg-card[data-elevation]:not(.lg-card--flat) {
   filter: drop-shadow(var(--lg-card-lift, none));
 }
+
+/* ================================================================== *
+ * Segmented control (plan 012)
+ *
+ * A native radiogroup (<fieldset>/<legend> + visually-hidden radios) with a
+ * single sliding <LiquidGlass> indicator behind the active option. The bevel
+ * rim reuses --lg-edge-shadow (single source of truth in glass-edge.ts); the
+ * slide is a transform transition on the indicator (set inline in the JS so it
+ * can be snapped under reduced motion). No Tailwind / token assumptions.
+ * ================================================================== */
+
+.lg-segmented {
+  /* Fieldset reset: strip default border / margin / padding chrome. */
+  appearance: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-inline-size: 0; /* fieldset min-width:min-content footgun */
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  --lg-seg-pad: 0.25rem;
+  --lg-seg-radius: 999px;
+  font: inherit;
+}
+
+/* Visually-hidden legend (still in the a11y tree as the group label). When
+   --visible is set it renders as a normal caption above the track. */
+.lg-segmented-legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.lg-segmented-legend--visible {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  clip: auto;
+  overflow: visible;
+  white-space: normal;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--lg-fg, rgba(20, 22, 28, 0.82));
+}
+
+@media (prefers-color-scheme: dark) {
+  .lg-segmented-legend--visible {
+    color: var(--lg-fg, rgba(232, 234, 240, 0.86));
+  }
+}
+
+/* The track holds the indicator (behind) + the option labels (in front). The
+   translucent rail + inset bevel reuse the shared edge tokens. */
+.lg-segmented-track {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  padding: var(--lg-seg-pad);
+  border-radius: var(--lg-seg-radius);
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: var(--lg-edge-shadow);
+  isolation: isolate;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  .lg-segmented-track {
+    background: rgba(20, 22, 28, 0.22);
+  }
+}
+
+/* The sliding indicator layer. Absolutely positioned inside the track padding;
+   its width + translateX are set inline (CSS equal-segment default pre-measure,
+   measured px post-mount). The transition is applied inline so reduced-motion
+   can snap it. */
+.lg-segmented-indicator {
+  position: absolute;
+  top: var(--lg-seg-pad);
+  left: var(--lg-seg-pad);
+  bottom: var(--lg-seg-pad);
+  /* width comes from inline style; cap to the padded track width */
+  border-radius: var(--lg-seg-radius);
+  z-index: 0;
+  pointer-events: none;
+  will-change: transform, width;
+}
+
+.lg-segmented-glass {
+  border-radius: var(--lg-seg-radius);
+}
+
+.lg-segmented-glass-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Option labels sit ABOVE the indicator. Real radios are visually hidden but
+   remain focusable + screen-reader exposed; focus-visible draws the ring on the
+   styled label. */
+.lg-segmented-option {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+  flex: 1 1 auto;
+  border-radius: var(--lg-seg-radius);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--lg-fg, rgba(40, 42, 50, 0.7));
+  transition: color 200ms ease;
+}
+
+.lg-segmented-option[data-active="true"] {
+  color: var(--lg-fg-active, rgba(17, 17, 19, 0.96));
+}
+
+@media (prefers-color-scheme: dark) {
+  .lg-segmented-option {
+    color: var(--lg-fg, rgba(220, 222, 230, 0.72));
+  }
+  .lg-segmented-option[data-active="true"] {
+    color: var(--lg-fg-active, rgba(248, 249, 252, 0.98));
+  }
+}
+
+/* Visually-hidden native radio (keeps full keyboard model + SR semantics). */
+.lg-segmented-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+  clip: rect(0, 0, 0, 0);
+}
+
+/* Focus-visible ring on the active/focused label (driven by the hidden radio's
+   :focus-visible since the label wraps it). */
+.lg-segmented-input:focus-visible + .lg-segmented-icon,
+.lg-segmented-input:focus-visible ~ .lg-segmented-label,
+.lg-segmented-option:focus-within {
+  outline: none;
+}
+
+.lg-segmented-option:has(.lg-segmented-input:focus-visible) {
+  outline: 2px solid var(--lg-focus-ring, rgba(60, 130, 255, 0.9));
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(60, 130, 255, 0.25);
+}
+
+.lg-segmented-option:has(.lg-segmented-input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.lg-segmented-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+.lg-segmented-option[data-icon-only="true"] {
+  aspect-ratio: 1 / 1;
+}
+
+/* --- Sizes (typography + padding; the glass shape inherits the radius) --- */
+.lg-segmented--sm {
+  font-size: 0.8125rem;
+}
+.lg-segmented--sm .lg-segmented-option {
+  padding: 0.3rem 0.7rem;
+}
+
+.lg-segmented--md {
+  font-size: 0.9375rem;
+}
+.lg-segmented--md .lg-segmented-option {
+  padding: 0.45rem 1rem;
+}
+
+.lg-segmented--lg {
+  font-size: 1.0625rem;
+}
+.lg-segmented--lg .lg-segmented-option {
+  padding: 0.6rem 1.35rem;
+}

@@ -40,6 +40,12 @@ export {
   type GlassCardProps,
   type GlassCardElevation,
 } from './glass-card';
+export {
+  GlassSegmentedControl,
+  type GlassSegmentedControlProps,
+  type GlassSegmentedControlSize,
+  type GlassSegmentedOption,
+} from './glass-segmented-control';
 
 // Motion + rim-lighting surface (plan 005). Exported for advanced consumers who
 // coordinate motion externally or reuse the bevel.
