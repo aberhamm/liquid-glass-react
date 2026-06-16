@@ -7,6 +7,12 @@ import dts from 'vite-plugin-dts';
 // (.storybook/* and vitest.config.ts respectively) so they can be layered in
 // without colliding with the production `build.lib` settings below. Keep
 // build-only concerns here; keep test/story concerns out of this file.
+//
+// Storybook inherits this file via @storybook/react-vite, so the reconciliation
+// strip now lives in `.storybook/main.ts` `viteFinal`: it removes `build.lib`,
+// `build.rollupOptions` (the React `external`), and the vite-plugin-dts plugin
+// for the Storybook build only. This file remains the single source of truth for
+// `pnpm build`; nothing Storybook-specific belongs here.
 export default defineConfig({
   plugins: [
     dts({
@@ -14,7 +20,7 @@ export default defineConfig({
       rollupTypes: true,
       tsconfigPath: resolve(__dirname, 'tsconfig.json'),
       include: ['src'],
-      exclude: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+      exclude: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/**/*.stories.tsx'],
     }),
   ],
   build: {

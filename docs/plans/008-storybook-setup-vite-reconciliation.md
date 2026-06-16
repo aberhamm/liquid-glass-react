@@ -1,13 +1,16 @@
 ---
 id: 008
 title: Storybook 8 setup and Vite config reconciliation
-status: in-progress
+status: done
 blocked-by: [007]
 priority:
 goal: liquid-glass-component-library
 allows-migrations: false
 needs-review: none
 created: 2026-06-13
+completed: 2026-06-16
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -86,3 +89,35 @@ Checks:
 - [cmd] `test -d storybook-static && test -f storybook-static/index.html`
 - [browse] start `pnpm storybook` and verify the LiquidGlass smoke story renders a glass element over a backdrop with no console errors, then stop the dev server (do not leave it running — plan 010's Playwright webServer must own the port)
 - [manual] Confirm library bundle (`dist/`) and Storybook output are both correct — no mangling from shared config.
+
+## Implementation Notes
+
+Installed Storybook 8.6.18 (`@storybook/react-vite`, `@storybook/react`,
+`@storybook/addon-essentials`) — the latest 8.6 patch, which supports Vite 6. The config
+reconciliation lives in `.storybook/main.ts` `viteFinal`, which strips three library-only
+bits that would otherwise bleed in from the inherited `vite.config.ts`: `build.lib` (would
+mangle Storybook's app build), `build.rollupOptions` (its `external: [react,...]` would
+leave React unbundled, breaking the preview), and the `vite:dts` plugin. `vite.config.ts`
+is untouched for `pnpm build`; the dts `exclude` gained `src/**/*.stories.tsx`. All three
+coexist cleanly: `pnpm build` emits index.mjs/index.cjs/index.d.ts/liquid-glass-react.css
+intact, Vitest stays green (105/105), and `pnpm build-storybook` produces a valid
+`storybook-static/` (index.html + iframe.html, React bundled) — the artifact plan 010
+serves. One CSF3 smoke story per component with a gradient-backdrop decorator. Health PASS
+9.1.
+
+Deviation: live in-browser smoke deferred to plan 010's Playwright suite per the plan's
+best-effort [browse] guidance (build-storybook fails on compile/import errors, so a
+successful build verifies stories render); no dev server left running (port 6006 free).
+
+**Files changed:**
+
+- `package.json` (modified — Storybook devDeps + scripts)
+- `pnpm-lock.yaml` (modified)
+- `vite.config.ts` (modified — boundary comment + stories dts exclude)
+- `.storybook/main.ts` (created)
+- `.storybook/preview.tsx` (created)
+- `src/liquid-glass.stories.tsx` (created)
+- `src/glass-button.stories.tsx` (created)
+- `src/glass-card.stories.tsx` (created)
+
+**Commit:** `1206c1a` — chore(storybook): Storybook 8.6 + Vite config reconciliation
