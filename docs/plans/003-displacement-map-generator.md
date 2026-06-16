@@ -1,7 +1,7 @@
 ---
 id: 003
 title: Displacement-map generator (rounded-rect SDF)
-status: pending
+status: in-progress
 blocked-by: [002]
 priority:
 goal: liquid-glass-component-library
