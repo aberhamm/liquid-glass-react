@@ -1,7 +1,7 @@
 ---
 id: 012
 title: GlassSegmentedControl (liquid toggle)
-status: pending
+status: in-progress
 blocked-by: [007, 008, 010]
 priority:
 goal: liquid-glass-component-library
