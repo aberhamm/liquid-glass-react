@@ -1,13 +1,16 @@
 ---
 id: 003
 title: Displacement-map generator (rounded-rect SDF)
-status: in-progress
+status: done
 blocked-by: [002]
 priority:
 goal: liquid-glass-component-library
 allows-migrations: false
 needs-review: none
 created: 2026-06-13
+completed: 2026-06-16
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -121,3 +124,25 @@ Checks:
 - [cmd] `pnpm test -- displacement`
 - [assert] `pnpm test -- displacement 2>&1 | tail -5` contains `pass`
 - [manual] Confirm no base64 image blobs were copied verbatim from upstream; maps are code-generated.
+
+## Implementation Notes
+
+Implemented `src/displacement.ts` with pure `roundedRectSDF` + `smoothStep`, four
+genuinely-distinct map generators (standard/polar/prominent/shader), a bounded LRU cache
+(cap 32) with 16px dimension quantization, and an SSR/degenerate guard returning a 1×1
+transparent PNG. **Deviation (intentional, justified):** maps are encoded via an inline
+dependency-free pure-JS PNG encoder (stored-block zlib + adler32 + CRC32 + manual base64)
+rather than `canvas.toDataURL()` — jsdom has no canvas, so a canvas path would force the
+hard four-modes-distinct acceptance test to be skipped in CI. The pure path runs
+identically in browser/Node/jsdom with the same observable contract (R=X, B=Y, 128
+neutral, `data:image/png;base64` URL) and was validated to round-trip through Node's real
+zlib inflater for all four modes. Code review fixed one efficiency finding; health PASS
+9.1, 33/33 tests.
+
+**Files changed:**
+
+- `src/index.ts` (modified)
+- `src/displacement.ts` (created)
+- `src/displacement.test.ts` (created)
+
+**Commit:** `384fb13` — feat(displacement): rounded-rect SDF map generator with bounded LRU cache
