@@ -1,13 +1,16 @@
 ---
 id: 010
 title: Playwright cross-browser E2E suite
-status: in-progress
+status: done
 blocked-by: [009]
 priority:
 goal: liquid-glass-component-library
 allows-migrations: false
 needs-review: none
 created: 2026-06-13
+completed: 2026-06-16
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -120,3 +123,36 @@ Checks:
 - [cmd] `pnpm e2e` (builds Storybook, serves the static artifact, runs all three engines)
 - [assert] `pnpm e2e 2>&1 | tail -15` contains `passed`
 - [manual] Inspect screenshots: Chromium shows refraction at the glass edge; Firefox/WebKit show a clean frosted fallback.
+
+## Implementation Notes
+
+Playwright E2E suite live across Chromium, Firefox, WebKit (36 tests: 24 pass, 12
+browser-gated skips). Chromium: backdrop-filter contains `url(` for the SVG displacement
+filter, feImage `data:` URL for shader mode, feTurbulence for turbulence mode, elastic
+transform change on pointer move, and a BLOCKING committed pixel-diff baseline
+(`showcase-glass-chromium-chromium-darwin.png`, maxDiffPixelRatio 0.03, clipped to the
+glass region). Firefox + WebKit assert the graceful-degradation passing state: no `url(`
+in backdrop-filter, non-zero glass box, zero console.error/pageerror. The webServer serves
+the pre-built `storybook-static` via `http-server` (build happens in the `e2e` script, not
+the webServer command, to avoid racing readiness). GlassSegmentedControl E2E deliberately
+NOT included (owned by 012, which reuses this `playwright.config.ts`). Health PASS 9.1.
+
+Three bugs caught/fixed during authoring (all test/selector-side, not component behavior):
+browsers serialize `url(#id)` as `url("#id")` (assertion fix); the bare `button` selector
+matched Storybook's own UI chrome (scoped to the story canvas); the interaction test moved
+to element center instead of an offset (no motion delta).
+
+CI caveat for 011: the committed pixel baseline is darwin-only (platform-suffixed); the
+visual-diff test should run on a macOS runner or get a Linux baseline in CI.
+
+**Files changed:**
+
+- `package.json` (modified — @playwright/test + http-server devDeps, e2e scripts)
+- `pnpm-lock.yaml` (modified)
+- `playwright.config.ts` (created — 3 projects, http-server webServer, screenshot tolerance)
+- `e2e/refraction.spec.ts` (created)
+- `e2e/interaction.spec.ts` (created)
+- `e2e/glass-button.spec.ts` (created)
+- `e2e/refraction.spec.ts-snapshots/showcase-glass-chromium-chromium-darwin.png` (created — committed baseline)
+
+**Commit:** `acde732` — test(e2e): Playwright cross-browser suite with blocking pixel-diff
