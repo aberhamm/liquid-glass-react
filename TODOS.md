@@ -31,9 +31,10 @@ Status legend: 🔵 not started · 🟡 in progress · ✅ done
 - **What:** A per-export size check (e.g. `size-limit` or `bundlesize`) asserting that
   importing only `GlassButton` does not pull in the full `<LiquidGlass>` + displacement
   generator, with a CI budget that fails on regression.
-- **Why:** Plan 001 sets `sideEffects: false` and plan 011 runs `attw` + `npm pack
-  --dry-run`, but nothing guards selective-import weight. The SDF/canvas displacement
-  generator (plan 003) is non-trivial and could bloat a `GlassButton`-only import.
+- **Why:** Plan 001 sets `sideEffects: ["**/*.css"]` (so the component stylesheet
+  survives tree-shaking while JS stays shakeable) and plan 011 runs `attw` + `npm pack
+  --dry-run`, but nothing guards selective-import weight. The SDF displacement generator
+  (plan 003) is non-trivial and could bloat a `GlassButton`-only import.
 - **Context:** Add `size-limit` config keyed per public entry point. Natural home is an
   extension of plan 011's release/CI work. Confirm the build (plan 001 Vite lib mode)
   emits tree-shakeable ESM first. Plan 003 already commits to runtime-generated
@@ -63,16 +64,17 @@ Status legend: 🔵 not started · 🟡 in progress · ✅ done
 - **Effort:** human ~3h / CC ~20 min.
 
 ### 🔵 T4 — GlassCard interactive-a11y E2E (conditional)
-- **What:** A Playwright a11y test for `<GlassCard as="a">` / `as="button"` (focus ring,
-  keyboard activation) mirroring the existing `GlassButton` E2E.
+- **What:** A Playwright a11y test for `<GlassCard asChild><a>…</a></GlassCard>` /
+  `<button>` (focus ring, keyboard activation) mirroring the existing `GlassButton` E2E.
 - **Why:** Plan 010 covers `GlassButton` keyboard a11y across engines, but `GlassCard`'s
-  `as` prop allows interactive elements (plan 007). If `GlassCard` stays purely
-  presentational this is unnecessary; if interactive usage is supported/encouraged, it
-  needs the same focus + keyboard coverage.
+  `asChild` polymorphism (plan 007) allows interactive child elements. If `GlassCard`
+  stays purely presentational this is unnecessary; if interactive usage is
+  supported/encouraged, it needs the same focus + keyboard coverage.
 - **Context:** Decide first whether `GlassCard` is meant to be interactive. Plan 007
-  currently scopes it presentational (`as` defaults to `'div'`, consumer owns a11y for
-  interactive elements). Promote this TODO only if that stance changes.
-- **Depends on:** 007 (GlassCard `as` behavior), 010 (Playwright harness).
+  currently scopes it presentational (renders a `<div>` by default; `asChild` lets the
+  consumer supply an interactive element and own its a11y). Promote this TODO only if
+  that stance changes.
+- **Depends on:** 007 (GlassCard `asChild` behavior), 010 (Playwright harness).
 - **Effort:** human ~1h / CC ~10 min.
 
 ### 🔵 T5 — WebKit elastic-motion E2E coverage
