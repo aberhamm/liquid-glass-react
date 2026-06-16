@@ -1,13 +1,16 @@
 ---
 id: 002
 title: Public API types, capability detection, and parity spec
-status: in-progress
+status: done
 blocked-by: [001]
 priority:
 goal: liquid-glass-component-library
 allows-migrations: false
 needs-review: none
 created: 2026-06-13
+completed: 2026-06-16
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -120,3 +123,26 @@ Checks:
 - [cmd] `test -f docs/PARITY.md`
 - [assert] `grep -q "Non-goals" docs/PARITY.md && echo found` outputs `found`
 - [manual] Confirm `detectGlassCapabilities()` returns all-false (conservative) when `window` is undefined.
+
+## Implementation Notes
+
+Implemented the load-bearing contracts: complete public types (`LiquidGlassProps`,
+`DisplacementMode`, `MousePos`, `GlassCapabilities`) with TSDoc + documented defaults;
+an SSR-safe `detectGlassCapabilities()` using a POSITIVE Blink gate
+(`canRefract = supportsBackdropFilter && isChromium`, never `!isFirefox`); a
+`useGlassCapabilities()` hook (conservative-first-render then useEffect re-eval); Vitest
+tests asserting Chrome/Edge are refraction-capable while Safari/Firefox are not, plus
+SSR/partial-env guard paths; and `docs/PARITY.md` with the prop-parity table and an
+explicit "Non-goals" section. Code review fixed 3 low-severity findings; health PASS
+9.1, tests 9→11. No rendering/component/SVG work, as scoped. No deviations.
+
+**Files changed:**
+
+- `src/index.ts` (modified)
+- `src/types.ts` (created)
+- `src/capabilities.ts` (created)
+- `src/use-glass-capabilities.ts` (created)
+- `src/capabilities.test.ts` (created)
+- `docs/PARITY.md` (created)
+
+**Commit:** `ca26248` — feat(api): public types, SSR-safe capability detection, PARITY spec

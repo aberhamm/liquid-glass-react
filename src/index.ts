@@ -1,6 +1,23 @@
 /**
  * Public entry point for @aberhamm/liquid-glass-react.
  *
- * Placeholder export only (plan 001). Real component exports land in 002+.
+ * Plan 002 establishes the load-bearing contracts: public types, runtime
+ * capability detection, and the React hook. Rendering, the SVG filter, and the
+ * `<LiquidGlass>` component itself land in later plans.
  */
+
 export const VERSION = '0.0.0';
+
+export type {
+  DisplacementMode,
+  GlassCapabilities,
+  LiquidGlassProps,
+  MousePos,
+} from './types';
+
+export {
+  detectGlassCapabilities,
+  getConservativeGlassCapabilities,
+} from './capabilities';
+
+export { useGlassCapabilities } from './use-glass-capabilities';
