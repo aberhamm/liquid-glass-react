@@ -1,7 +1,7 @@
 ---
 id: 010
 title: Playwright cross-browser E2E suite
-status: pending
+status: in-progress
 blocked-by: [009]
 priority:
 goal: liquid-glass-component-library
