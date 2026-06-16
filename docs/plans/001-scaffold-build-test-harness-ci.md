@@ -1,7 +1,7 @@
 ---
 id: 001
 title: Scaffold package, Vite library build, test harness, and CI
-status: pending
+status: in-progress
 blocked-by: []
 priority:
 goal: liquid-glass-component-library
