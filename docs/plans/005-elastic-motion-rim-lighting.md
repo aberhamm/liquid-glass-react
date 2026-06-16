@@ -1,7 +1,7 @@
 ---
 id: 005
 title: Elastic motion, rim lighting, and mouse tracking
-status: pending
+status: in-progress
 blocked-by: [004]
 priority:
 goal: liquid-glass-component-library
