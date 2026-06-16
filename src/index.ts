@@ -25,3 +25,25 @@ export { useGlassCapabilities } from './use-glass-capabilities';
 export { getDisplacementMap, roundedRectSDF, smoothStep } from './displacement';
 
 export { LiquidGlass } from './liquid-glass';
+
+// Motion + rim-lighting surface (plan 005). Exported for advanced consumers who
+// coordinate motion externally or reuse the bevel.
+export { useReducedMotion } from './use-reduced-motion';
+export {
+  useMousePosition,
+  type MouseContainer,
+  type MousePositionState,
+  type UseMousePositionOptions,
+} from './use-mouse-position';
+export {
+  calculateDirectionalScale,
+  calculateElasticTranslation,
+  type DirectionalScale,
+  type ElasticTranslation,
+} from './motion';
+export {
+  GLASS_EDGE_LIGHT,
+  GLASS_EDGE_DARK,
+  getGlassEdgeShadow,
+  type GlassEdgeScheme,
+} from './glass-edge';

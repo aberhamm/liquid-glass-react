@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { act, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock the capability hook so tests control `canRefract` deterministically.
@@ -42,13 +42,44 @@ function stubLayout(width = 320, height = 96): void {
   } as DOMRect);
 }
 
+/**
+ * Install a controllable `matchMedia` so motion-aware hooks (`useReducedMotion`,
+ * `usePrefersDark`) resolve deterministically. `reduced` toggles
+ * `(prefers-reduced-motion: reduce)`.
+ */
+function installMatchMedia(reduced: boolean): void {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn((query: string) => ({
+      matches: query.includes('reduce') ? reduced : false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  );
+}
+
 beforeEach(() => {
   mockCapabilities.mockReturnValue(caps(true));
   stubLayout();
+  installMatchMedia(false);
+  Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, configurable: true });
+  // jsdom always defines `ontouchstart` on window (an IDL handler attribute),
+  // which would make the touch heuristic ('ontouchstart' in window) falsely true.
+  // Remove it so the default test environment reads as a non-touch desktop.
+  if ('ontouchstart' in window) {
+    // biome-ignore lint/performance/noDelete: test cleanup must truly remove the key
+    delete (window as unknown as Record<string, unknown>).ontouchstart;
+  }
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 /** Find the glass surface element (carries the backdrop-filter). */
@@ -367,5 +398,99 @@ describe('content isolation', () => {
     // Also assert the child lives in the dedicated content layer.
     const content = container.querySelector('[data-lg-content]');
     expect(content?.contains(child)).toBe(true);
+  });
+});
+
+describe('elastic motion + rim lighting (plan 005)', () => {
+  function getShadow(container: HTMLElement): HTMLElement {
+    const el = container.querySelector<HTMLElement>('[data-lg-shadow]');
+    if (!el) throw new Error('drop-shadow element not found');
+    return el;
+  }
+
+  it('renders the decoupled drop-shadow as a SIBLING of (not inside) the clipped surface', () => {
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    const shadow = getShadow(container);
+
+    // Structural guarantee: a same-node box-shadow would be clipped by the
+    // surface's overflow:hidden + backdrop clip, so the outer glow must live on
+    // a separate sibling. Assert they are siblings and neither contains the other.
+    expect(surface.contains(shadow)).toBe(false);
+    expect(shadow.contains(surface)).toBe(false);
+    expect(shadow.parentElement).toBe(surface.parentElement);
+    // The decoupled element actually carries the outer (non-inset) drop shadow.
+    expect(shadow.style.boxShadow).toMatch(/rgba/);
+    expect(shadow.style.boxShadow).not.toMatch(/inset/);
+  });
+
+  it('renders the pure-CSS bevel as an inset box-shadow on the surface, even without refraction', () => {
+    mockCapabilities.mockReturnValue(caps(false));
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    // Bevel is inset — renders cross-browser regardless of canRefract.
+    expect(surface.style.boxShadow).toMatch(/inset/);
+  });
+
+  it('writes a transform on the surface after a synthetic pointer move', () => {
+    const { container } = render(
+      <LiquidGlass elasticity={1}>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+
+    act(() => {
+      // Wrapper center is (160,48) given the 320x96 stubbed rect; move well off
+      // center but inside the activation radius so motion is non-trivial.
+      fireEvent.mouseMove(document, { clientX: 200, clientY: 60 });
+    });
+
+    const transform = surface.style.transform;
+    expect(transform).toMatch(/scale\(/);
+    expect(transform).toMatch(/translate\(/);
+    // A real (non-identity) scale: at least one axis differs from 1.
+    expect(transform).not.toMatch(/scale\(1\.0000, 1\.0000\)/);
+  });
+
+  it('yields a neutral (identity) transform under reduced motion', () => {
+    installMatchMedia(true);
+    const { container } = render(
+      <LiquidGlass elasticity={1}>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+
+    act(() => {
+      fireEvent.mouseMove(document, { clientX: 200, clientY: 60 });
+    });
+
+    // Reduced motion suppresses tracking entirely: identity scale, zero translate.
+    expect(surface.style.transform).toContain('translate(0.00px, 0.00px)');
+    expect(surface.style.transform).toContain('scale(1.0000, 1.0000)');
+  });
+
+  it('renders the two rim highlight/border blend layers regardless of canRefract', () => {
+    mockCapabilities.mockReturnValue(caps(false));
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const highlight = container.querySelector<HTMLElement>('[data-lg-highlight]');
+    const border = container.querySelector<HTMLElement>('[data-lg-border]');
+    expect(highlight).not.toBeNull();
+    expect(border).not.toBeNull();
+    expect(highlight?.style.mixBlendMode).toBe('screen');
+    expect(border?.style.mixBlendMode).toBe('overlay');
   });
 });

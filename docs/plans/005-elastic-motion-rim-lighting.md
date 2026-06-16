@@ -1,13 +1,16 @@
 ---
 id: 005
 title: Elastic motion, rim lighting, and mouse tracking
-status: in-progress
+status: done
 blocked-by: [004]
 priority:
 goal: liquid-glass-component-library
 allows-migrations: false
 needs-review: none
 created: 2026-06-13
+completed: 2026-06-16
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -129,3 +132,35 @@ Checks:
 - [cmd] `pnpm test -- use-mouse-position`
 - [assert] `pnpm test 2>&1 | tail -5` contains `pass`
 - [manual] In any browser, moving the cursor near the glass stretches it toward the pointer; reduced-motion disables it.
+
+## Implementation Notes
+
+Implemented the cross-browser elastic motion + rim lighting layer. `useReducedMotion` is
+the single live source of reduced-motion state (matchMedia + 'change' listener, SSR-safe);
+`useMousePosition` and the component both consume it — no other path queries reduced-motion
+reactively. The outer drop-shadow/glow is a separate `[data-lg-shadow]` SIBLING behind the
+`overflow:hidden` glass surface (render test asserts non-descendant), while the pure-CSS
+bevel from the DRY `glass-edge.ts` is an inset box-shadow on the surface. The elastic
+transform applies to the surface + rim/highlight blend layers only (content stays crisp);
+all motion/rim/edge/gradient layers render regardless of `canRefract`; touch + reduced-
+motion both neutralize the follow. Health PASS 9.1.
+
+Deviations (in scope): (1) dark/light bevel keyed off a small local `usePrefersDark`
+matchMedia hook since the public types have no color-scheme prop; (2) jsdom always defines
+`window.ontouchstart`, so test files delete it in `beforeEach` to make the desktop path the
+default — source keeps the plan-specified `'ontouchstart' in window || maxTouchPoints`
+heuristic.
+
+**Files changed:**
+
+- `src/index.ts` (modified)
+- `src/liquid-glass.tsx` (modified)
+- `src/liquid-glass.test.tsx` (modified)
+- `src/use-reduced-motion.ts` (created)
+- `src/motion.ts` (created)
+- `src/glass-edge.ts` (created)
+- `src/use-mouse-position.ts` (created)
+- `src/motion.test.ts` (created)
+- `src/use-mouse-position.test.ts` (created)
+
+**Commit:** `b3eb775` — feat(motion): elastic cursor motion, rim lighting, pure-CSS bevel

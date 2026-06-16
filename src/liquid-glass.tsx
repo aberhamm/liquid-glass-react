@@ -39,8 +39,12 @@
 
 import { type CSSProperties, type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { type MapMode, getDisplacementMap } from './displacement';
+import { getGlassEdgeShadow } from './glass-edge';
+import { calculateDirectionalScale, calculateElasticTranslation } from './motion';
 import type { DisplacementMode, LiquidGlassProps } from './types';
 import { useGlassCapabilities } from './use-glass-capabilities';
+import { useMousePosition } from './use-mouse-position';
+import { useReducedMotion } from './use-reduced-motion';
 
 // ---------------------------------------------------------------------------
 // Defaults (parity spec — plan 004)
@@ -76,6 +80,34 @@ const BLUR_PX_PER_UNIT = 16;
 
 function quantize(value: number): number {
   return Math.max(QUANT_GRID, Math.round(value / QUANT_GRID) * QUANT_GRID);
+}
+
+/**
+ * SSR-safe live `(prefers-color-scheme: dark)` state, used to pick the glass-edge
+ * bevel variant. Mirrors `useReducedMotion`'s pattern (mount sync + `'change'`
+ * listener) but is local to the component — the rim bevel is the only consumer,
+ * and color-scheme is not a motion concern routed through `useReducedMotion`.
+ * Returns `false` (light) during SSR / before mount.
+ */
+function usePrefersDark(): boolean {
+  const [dark, setDark] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+    setDark(mql.matches);
+    const onChange = (event: MediaQueryListEvent): void => setDark(event.matches);
+    if (typeof mql.addEventListener === 'function') {
+      mql.addEventListener('change', onChange);
+      return () => mql.removeEventListener('change', onChange);
+    }
+    mql.addListener(onChange);
+    return () => mql.removeListener(onChange);
+  }, []);
+
+  return dark;
 }
 
 function toCssLength(value: number | string): string {
@@ -291,9 +323,16 @@ function GlassFilter({
  * The liquid-glass refraction primitive. See the file header for the layer
  * stack, application mechanism, and measurement strategy.
  *
- * Motion props (`globalMousePos`, `mouseOffset`, `mouseContainer`,
- * `elasticity`) are ACCEPTED-BUT-INERT here — they are destructured so the
- * public API is honored, but the elastic motion behavior lands in plan 005.
+ * ## Motion + rim lighting (plan 005)
+ *
+ * The elastic stretch/translate (from {@link useMousePosition} + the pure
+ * `motion.ts` math) and the rim/highlight layers are PURE CSS — they render in
+ * every browser regardless of `canRefract`. The `transform` is applied to the
+ * GLASS SURFACE and the rim/highlight layers (which are siblings of the content
+ * layer), so the elastic distortion never warps the crisp `children`. The pure-
+ * CSS bevel (`glass-edge.ts`) is an inset `box-shadow` on the surface, while the
+ * outer drop-shadow/glow is a SEPARATE sibling element rendered BEHIND the
+ * `overflow:hidden` surface so clipping can't eat it.
  */
 export function LiquidGlass({
   children,
@@ -301,8 +340,7 @@ export function LiquidGlass({
   blurAmount = DEFAULTS.blurAmount,
   saturation = DEFAULTS.saturation,
   aberrationIntensity = DEFAULTS.aberrationIntensity,
-  // Accepted-but-inert until plan 005 (elastic motion).
-  elasticity: _elasticity = DEFAULTS.elasticity,
+  elasticity = DEFAULTS.elasticity,
   cornerRadius = DEFAULTS.cornerRadius,
   padding = DEFAULTS.padding,
   overLight = DEFAULTS.overLight,
@@ -310,14 +348,27 @@ export function LiquidGlass({
   className,
   style,
   onClick,
-  // Accepted-but-inert motion props (wired in plan 005).
-  globalMousePos: _globalMousePos,
-  mouseOffset: _mouseOffset,
-  mouseContainer: _mouseContainer,
+  globalMousePos,
+  mouseOffset,
+  mouseContainer,
 }: LiquidGlassProps): ReactNode {
   const { canRefract } = useGlassCapabilities();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [dimensions, setDimensions] = useState<Dimensions | null>(null);
+  const reducedMotion = useReducedMotion();
+  const prefersDark = usePrefersDark();
+  const [hovered, setHovered] = useState<boolean>(false);
+  const [pressed, setPressed] = useState<boolean>(false);
+
+  // Pointer tracking: respects mouseContainer / globalMousePos / mouseOffset,
+  // consumes reduced-motion + touch internally, SSR-safe. The wrapper element is
+  // the relative frame when no explicit container is supplied.
+  const { offset, isActive } = useMousePosition({
+    container: mouseContainer,
+    globalMousePos,
+    mouseOffset,
+    elementRef: wrapperRef,
+  });
 
   // Sanitize useId() — it returns colon-bearing ids like `:r0:` that are invalid
   // in CSS selectors and a classic SVG-filter footgun. Never reference the raw id.
@@ -389,6 +440,39 @@ export function LiquidGlass({
 
   const radius = toCssLength(cornerRadius);
 
+  // --- Elastic motion -------------------------------------------------------
+  // The mouse offset is relative to the wrapper center. Compute scale + translate
+  // from the pure motion math, treating center as the origin (the math takes
+  // mouse/center pairs, so feeding offset against {0,0} is equivalent). Motion is
+  // only live when the hook reports an active (non-reduced, non-touch) pointer.
+  const motionLive = isActive && !reducedMotion;
+  const scale = motionLive
+    ? calculateDirectionalScale(offset.x, offset.y, 0, 0, elasticity)
+    : { scaleX: 1, scaleY: 1 };
+  const translate = motionLive
+    ? calculateElasticTranslation(offset.x, offset.y, 0, 0, elasticity)
+    : { x: 0, y: 0 };
+
+  // A slight extra "press" inset when actively clicked (only meaningful when the
+  // glass is interactive, i.e. an onClick is wired).
+  const interactive = typeof onClick === 'function';
+  const pressScale = interactive && pressed ? 0.96 : 1;
+
+  const surfaceTransform = `translate(${translate.x.toFixed(2)}px, ${translate.y.toFixed(
+    2,
+  )}px) scale(${(scale.scaleX * pressScale).toFixed(4)}, ${(scale.scaleY * pressScale).toFixed(4)})`;
+
+  // Gradient angle tracks the horizontal mouse offset so the rim catches light
+  // from the cursor side. Baseline 135deg (top-left light) shifted by offset.x.
+  const gradientAngle = 135 + (motionLive ? offset.x * 0.15 : 0);
+
+  // Bevel rim variant keyed off prefers-color-scheme.
+  const edgeShadow = getGlassEdgeShadow(prefersDark ? 'dark' : 'light');
+
+  // Hover brightens the highlight layers slightly.
+  const highlightOpacity = hovered ? 0.9 : 0.6;
+  const borderOpacity = hovered ? 0.55 : 0.35;
+
   const wrapperStyle: CSSProperties = {
     position: 'relative',
     display: 'inline-block',
@@ -397,13 +481,64 @@ export function LiquidGlass({
     ...style,
   };
 
+  // Decoupled outer drop-shadow/glow. SEPARATE sibling rendered BEHIND the
+  // clipped surface — a same-node box-shadow would be clipped by the surface's
+  // overflow:hidden + backdrop clip. It tracks the elastic translate so the glow
+  // follows the glass, and intensifies on hover.
+  const dropShadowStyle: CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    borderRadius: radius,
+    transform: surfaceTransform,
+    transition: 'box-shadow 200ms ease, transform 120ms ease-out',
+    boxShadow: hovered
+      ? '0 12px 32px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.18)'
+      : '0 8px 24px rgba(0, 0, 0, 0.22), 0 1px 4px rgba(0, 0, 0, 0.14)',
+    zIndex: -1,
+    pointerEvents: 'none',
+  };
+
   const surfaceStyle: CSSProperties = {
     position: 'absolute',
     inset: 0,
     borderRadius: radius,
+    overflow: 'hidden',
     backdropFilter,
     WebkitBackdropFilter: backdropFilter,
+    // Pure-CSS beveled rim — renders in every browser, independent of canRefract.
+    boxShadow: edgeShadow,
+    transform: surfaceTransform,
+    transition: 'transform 120ms ease-out',
     // Keep the surface strictly behind the content layer.
+    zIndex: 0,
+    pointerEvents: 'none',
+  };
+
+  // Highlight layer: a bright moving sheen using `screen` blend so it adds light
+  // without a hard edge. Tracks the gradient angle.
+  const highlightStyle: CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    borderRadius: radius,
+    transform: surfaceTransform,
+    transition: 'transform 120ms ease-out',
+    mixBlendMode: 'screen',
+    background: `linear-gradient(${gradientAngle}deg, rgba(255,255,255,${highlightOpacity}) 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0) 60%, rgba(255,255,255,${highlightOpacity * 0.5}) 100%)`,
+    zIndex: 0,
+    pointerEvents: 'none',
+  };
+
+  // Border layer: a thin rim-light ring using `overlay` blend so it deepens
+  // contrast at the edges. Tracks the same gradient angle.
+  const borderStyle: CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    borderRadius: radius,
+    transform: surfaceTransform,
+    transition: 'transform 120ms ease-out',
+    mixBlendMode: 'overlay',
+    padding: '1px',
+    background: `linear-gradient(${gradientAngle}deg, rgba(255,255,255,${borderOpacity}) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,${borderOpacity * 0.6}) 100%)`,
     zIndex: 0,
     pointerEvents: 'none',
   };
@@ -419,9 +554,25 @@ export function LiquidGlass({
     // interactive (and keyboard-accessible) elements as children. Forcing
     // keyboard handlers here would invent semantics the consumer didn't request.
     // biome-ignore lint/a11y/useKeyWithClickEvents: presentational pass-through; children own interactivity
-    <div ref={wrapperRef} className={className} style={wrapperStyle} onClick={onClick}>
-      {/* Glass surface: carries the backdrop-filter (+ optional url(#id)). The
-          children are NEVER inside this element. */}
+    <div
+      ref={wrapperRef}
+      className={className}
+      style={wrapperStyle}
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => {
+        setHovered(false);
+        setPressed(false);
+      }}
+      onMouseDown={() => setPressed(true)}
+      onMouseUp={() => setPressed(false)}
+    >
+      {/* Decoupled outer drop-shadow / glow: SEPARATE sibling rendered BEHIND
+          the clipped glass surface so its blur/offset are never clipped away. */}
+      <div data-lg-shadow="" style={dropShadowStyle} aria-hidden="true" />
+
+      {/* Glass surface: carries the backdrop-filter (+ optional url(#id)) and the
+          pure-CSS inset bevel. The children are NEVER inside this element. */}
       <div data-lg-surface="" style={surfaceStyle}>
         {filterActive ? (
           <GlassFilter
@@ -434,6 +585,11 @@ export function LiquidGlass({
           />
         ) : null}
       </div>
+
+      {/* Rim-light highlight + border layers (pure CSS blend, every browser).
+          Siblings of the content layer, so the blend never touches children. */}
+      <span data-lg-highlight="" style={highlightStyle} aria-hidden="true" />
+      <span data-lg-border="" style={borderStyle} aria-hidden="true" />
 
       {/* Content layer: sibling of the surface, above it, unfiltered. */}
       <div data-lg-content="" style={contentStyle}>
