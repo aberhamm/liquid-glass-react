@@ -1,7 +1,7 @@
 ---
 id: 009
 title: Component stories and polished interactive example
-status: pending
+status: in-progress
 blocked-by: [008]
 priority:
 goal: liquid-glass-component-library
