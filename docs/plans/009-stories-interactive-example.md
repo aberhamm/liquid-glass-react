@@ -1,13 +1,16 @@
 ---
 id: 009
 title: Component stories and polished interactive example
-status: in-progress
+status: done
 blocked-by: [008]
 priority:
 goal: liquid-glass-component-library
 allows-migrations: false
 needs-review: none
 created: 2026-06-13
+completed: 2026-06-16
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -89,3 +92,32 @@ Checks:
 - [cmd] `test -d storybook-static && test -f storybook-static/index.html`
 - [browse] start `pnpm storybook` and verify the Showcase/Example story renders a glass element over an animated backdrop, the LiquidGlass story controls change the effect live, and there are no console errors
 - [manual] Designer review: the showcase looks polished in Chromium and degrades cleanly in Firefox/Safari.
+
+## Implementation Notes
+
+Expanded all three story files into a full interactive documentation surface.
+`LiquidGlass` exposes every prop via `argTypes` (range/number for the 6 numeric props,
+5-value `select` for `mode`, boolean `overLight`, text `padding`) with TSDoc-sourced
+descriptions and component-default `args`; gains `Playground`, a `Modes` matrix rendering
+all five DisplacementMode tiles (so `shader` and `turbulence` are visibly exercised), and
+a `Showcase` story floating glass over a CSS-animated drifting gradient + orbs gated
+behind `@media (prefers-reduced-motion: reduce)` → static fallback. `GlassButton` gets a
+variant×size matrix, icon buttons, shine-on-press, `glassProps` escape hatch, `asChild`
+real-`<a>` link; `GlassCard` gets elevation variants + content panel + escape hatch +
+asChild. Autodocs enabled on all three Meta (3 docs pages). 15 stories; build-storybook
+succeeds; 105/105 tests; health PASS 9.1.
+
+Deviation: the cross-browser explainer is a CSF `CrossBrowser` story (three-tier
+full/frosted/solid visual mirroring PARITY.md), NOT MDX — adding MDX/addon-docs would
+touch 008's framework config (stories glob is `*.stories.@(ts|tsx)`), which is out of
+scope. `preview.tsx` refined to branch the backdrop decorator on a `noBackdrop` parameter
++ viewport parameter (no framework changes).
+
+**Files changed:**
+
+- `.storybook/preview.tsx` (modified)
+- `src/liquid-glass.stories.tsx` (modified)
+- `src/glass-button.stories.tsx` (modified)
+- `src/glass-card.stories.tsx` (modified)
+
+**Commit:** `02658f3` — docs(stories): full controls, modes matrix, animated showcase
