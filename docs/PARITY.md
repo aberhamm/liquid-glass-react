@@ -48,8 +48,39 @@ The single runtime gate is `GlassCapabilities.canRefract`, derived as
 | Firefox / Gecko   | `false`      | `false`      | **Degraded** — no SVG-backdrop-displacement compositing; falls back to a non-refractive frosted surface. |
 | SSR / pre-mount   | `false`      | `false`      | **Degraded (conservative)** — all capabilities `false` until the client mount effect re-evaluates, avoiding hydration mismatch. |
 
-"Degraded" surfaces are defined by the fallback plan (006); this plan only fixes
-the gate that selects between full and degraded tiers.
+"Degraded" surfaces are realized by the fallback plan (006); the table above
+fixes the gate that selects between full and degraded tiers, and the
+"Degradation tiers" section below specifies exactly what each degraded surface
+renders.
+
+## Degradation tiers (plan 006)
+
+When refraction can't render, `<LiquidGlass>` does NOT show an empty or broken
+box — it falls back through three tiers that share **identical box geometry**
+(same dimensions, `padding`, and `border-radius`), so degrading between tiers
+causes **no layout shift**. Only the surface fill/filter differs.
+
+| Tier | Selector | Surface fill | SVG `<filter>` | Rim + bevel + motion | Concretely renders on |
+| ---- | -------- | ------------ | -------------- | -------------------- | --------------------- |
+| **1 — full** | `canRefract` (`supportsBackdropFilter && isChromium`) | `backdrop-filter: url(#id) blur() saturate()` (+ `-webkit-` prefix) | rendered | yes | **Chromium** (Chrome, Edge, Brave, Opera) — full refraction |
+| **2 — frosted (degraded)** | `supportsBackdropFilter && !canRefract` | `backdrop-filter: blur() saturate()` (+ `-webkit-` prefix), **no** `url(#id)` | NOT rendered (no orphaned `<filter>` to error or dangle) | yes | **Firefox** (frosted fallback: blur + saturate + rim + motion, no refraction); **Safari / WebKit** (frosted fallback; no SVG backdrop displacement) |
+| **3 — solid (degraded)** | `!supportsBackdropFilter` | translucent **solid** background (scheme-aware `rgba(...)`, ~0.55 alpha) so content stays legible | NOT rendered | yes | **No-`backdrop-filter`** engines / very old browsers — solid translucent surface, never a transparent unreadable box |
+
+Notes on the degraded tiers:
+
+- The layered **inset-shadow glass bevel** (`glass-edge.ts`) is present in BOTH
+  fallback tiers — it is what makes the degraded result read as glass rather than
+  a plain blurred (or plain translucent) box.
+- The `-webkit-backdrop-filter` prefix is emitted alongside `backdrop-filter` for
+  tiers 1 and 2, so Safari/WebKit gets the frosted backdrop.
+- Elastic motion and the rim/highlight blend layers are pure CSS and render in
+  every tier; they are suppressed only by `prefers-reduced-motion: reduce`, in
+  the full and both degraded tiers alike.
+- **SSR / first paint** uses the conservative all-`false` capability snapshot, so
+  the server and the first client render agree (the full effect upgrades in a
+  mount effect). This is asserted by a `renderToString()` → `hydrateRoot()` test
+  with a `console.error` spy that fails on any hydration-mismatch warning. No path
+  emits `console.error`/`console.warn`.
 
 ## Capability detection
 

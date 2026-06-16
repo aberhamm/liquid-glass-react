@@ -1,4 +1,6 @@
 import { act, fireEvent, render } from '@testing-library/react';
+import { hydrateRoot } from 'react-dom/client';
+import { renderToString } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock the capability hook so tests control `canRefract` deterministically.
@@ -7,14 +9,25 @@ vi.mock('./use-glass-capabilities', () => ({
   useGlassCapabilities: () => mockCapabilities(),
 }));
 
+// The real conservative snapshot used for the SSR/first-paint render — imported
+// (not mocked) so the hydration test diffs the EXACT markup the server produces.
+import { getConservativeGlassCapabilities } from './capabilities';
 import type { GlassCapabilities } from './types';
 
 // Import AFTER the mock is registered.
 import { LiquidGlass } from './liquid-glass';
 
-function caps(canRefract: boolean): GlassCapabilities {
+/**
+ * Build a {@link GlassCapabilities} for the three render tiers (plan 006):
+ *   - `canRefract: true`  → Tier 1 full (backdrop-filter implied true).
+ *   - `canRefract: false, supportsBackdropFilter: true`  → Tier 2 frosted.
+ *   - `canRefract: false, supportsBackdropFilter: false` → Tier 3 solid.
+ * `supportsBackdropFilter` defaults to `canRefract` so a single-arg `caps(true)`
+ * yields the full tier and `caps(false)` the most degraded one unless overridden.
+ */
+function caps(canRefract: boolean, supportsBackdropFilter = canRefract): GlassCapabilities {
   return {
-    supportsBackdropFilter: canRefract,
+    supportsBackdropFilter,
     isChromium: canRefract,
     supportsSvgBackdropDisplacement: canRefract,
     isFirefox: false,
@@ -89,6 +102,18 @@ function getSurface(container: HTMLElement): HTMLElement {
   return el;
 }
 
+/**
+ * Read an inline style property as a string. jsdom's `CSSStyleDeclaration`
+ * returns `undefined` for camelCase keys that were never set (and React writes
+ * styles via the camelCase accessor, so `getPropertyValue` doesn't see them).
+ * This coalesces unset values to `''` so tier-presence/absence assertions are
+ * robust regardless of which quirk jsdom exhibits.
+ */
+function styleOf(el: HTMLElement, key: string): string {
+  const v = (el.style as unknown as Record<string, unknown>)[key];
+  return typeof v === 'string' ? v : '';
+}
+
 describe('<LiquidGlass> rendering', () => {
   it('renders its children', () => {
     const { getByText } = render(
@@ -150,7 +175,8 @@ describe('capability gating (filter presence)', () => {
   });
 
   it('omits url(#id) when canRefract is false but keeps blur/saturate', () => {
-    mockCapabilities.mockReturnValue(caps(false));
+    // Tier 2 frosted: backdrop-filter supported, refraction not.
+    mockCapabilities.mockReturnValue(caps(false, true));
     const { container } = render(
       <LiquidGlass>
         <span>hi</span>
@@ -492,5 +518,223 @@ describe('elastic motion + rim lighting (plan 005)', () => {
     expect(border).not.toBeNull();
     expect(highlight?.style.mixBlendMode).toBe('screen');
     expect(border?.style.mixBlendMode).toBe('overlay');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Plan 006 — tiered graceful degradation, console-cleanliness, layout stability,
+// and SSR/hydration safety.
+// ---------------------------------------------------------------------------
+
+describe('graceful degradation — capability matrix (plan 006)', () => {
+  /** Read the wrapper element's geometry-defining inline styles. */
+  function geometry(container: HTMLElement): {
+    padding: string;
+    borderRadius: string;
+    display: string;
+  } {
+    const wrapper = container.firstElementChild as HTMLElement;
+    return {
+      padding: wrapper.style.padding,
+      borderRadius: wrapper.style.borderRadius,
+      display: wrapper.style.display,
+    };
+  }
+
+  it('TIER 1 (full): canRefract+backdrop-filter → url(#id) refraction + SVG <filter>', () => {
+    mockCapabilities.mockReturnValue(caps(true));
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    const bf = styleOf(surface, 'backdropFilter');
+    expect(bf).toMatch(/url\(#lg-[^)]+\)/);
+    expect(bf).toMatch(/blur\(/);
+    expect(bf).toMatch(/saturate\(/);
+    expect(container.querySelector('filter')).not.toBeNull();
+    // Solid fallback fill is NOT used when the backdrop carries the look.
+    expect(styleOf(surface, 'background')).toBe('');
+  });
+
+  it('TIER 2 (frosted): !canRefract, backdrop-filter supported → blur/saturate, bevel, NO filter', () => {
+    mockCapabilities.mockReturnValue(caps(false, true));
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    const bf = styleOf(surface, 'backdropFilter');
+    // Frosted backdrop present but no refraction url and no <filter>.
+    expect(bf).toMatch(/blur\(/);
+    expect(bf).toMatch(/saturate\(/);
+    expect(bf).not.toMatch(/url\(#/);
+    expect(container.querySelector('filter')).toBeNull();
+    expect(container.innerHTML).not.toMatch(/url\(#lg-/);
+    // The inset-shadow glass bevel MUST be present in the fallback.
+    expect(surface.style.boxShadow).toMatch(/inset/);
+    // No solid fill — the blurred backdrop carries the frosted look.
+    expect(styleOf(surface, 'background')).toBe('');
+  });
+
+  it('emits the -webkit-backdrop-filter prefix alongside backdrop-filter (frosted tier)', () => {
+    // jsdom's CSSOM drops vendor-prefixed properties on read-back, so assert the
+    // prefix on the SERVER-serialized markup (react-dom keeps both keys), proving
+    // the component sets `WebkitBackdropFilter` for Safari/WebKit.
+    mockCapabilities.mockReturnValue(caps(false, true));
+    const html = renderToString(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    expect(html).toMatch(/backdrop-filter:blur\([^;]*saturate\([^;]*\)/);
+    expect(html).toMatch(/-webkit-backdrop-filter:blur\([^;]*saturate\([^;]*\)/);
+  });
+
+  it('TIER 3 (solid): no backdrop-filter → translucent solid bg, NO backdrop-filter, NO filter', () => {
+    mockCapabilities.mockReturnValue(caps(false, false));
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    // No backdrop-filter declaration at all (neither prefix).
+    expect(styleOf(surface, 'backdropFilter')).toBe('');
+    expect(styleOf(surface, 'webkitBackdropFilter')).toBe('');
+    // A translucent solid background keeps content legible.
+    const bg = styleOf(surface, 'background');
+    expect(bg).toMatch(/rgba\(/);
+    expect(bg).not.toBe('');
+    // No SVG filter / no url(#id) anywhere.
+    expect(container.querySelector('filter')).toBeNull();
+    expect(container.innerHTML).not.toMatch(/url\(#lg-/);
+    // Bevel still renders for polish.
+    expect(surface.style.boxShadow).toMatch(/inset/);
+  });
+
+  it('keeps IDENTICAL box geometry (padding / border-radius / display) across all three tiers', () => {
+    const render006 = (c: GlassCapabilities): ReturnType<typeof geometry> => {
+      mockCapabilities.mockReturnValue(c);
+      const { container, unmount } = render(
+        <LiquidGlass padding="12px 20px" cornerRadius={28}>
+          <span>hi</span>
+        </LiquidGlass>,
+      );
+      const geo = geometry(container);
+      unmount();
+      return geo;
+    };
+
+    const full = render006(caps(true));
+    const frosted = render006(caps(false, true));
+    const solid = render006(caps(false, false));
+
+    expect(full.padding).toBe('12px 20px');
+    expect(full.borderRadius).toBe('28px');
+    // No layout shift: every tier writes the same geometry.
+    expect(frosted).toEqual(full);
+    expect(solid).toEqual(full);
+  });
+
+  it('reduced motion yields an identity transform in the fallback tiers too', () => {
+    installMatchMedia(true);
+    for (const c of [caps(false, true), caps(false, false)]) {
+      mockCapabilities.mockReturnValue(c);
+      const { container, unmount } = render(
+        <LiquidGlass elasticity={1}>
+          <span>hi</span>
+        </LiquidGlass>,
+      );
+      const surface = getSurface(container);
+      act(() => {
+        fireEvent.mouseMove(document, { clientX: 200, clientY: 60 });
+      });
+      expect(surface.style.transform).toContain('translate(0.00px, 0.00px)');
+      expect(surface.style.transform).toContain('scale(1.0000, 1.0000)');
+      unmount();
+    }
+  });
+});
+
+describe('console cleanliness across tiers (plan 006)', () => {
+  it('renders every tier without console.error or console.warn', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    for (const c of [caps(true), caps(false, true), caps(false, false)]) {
+      mockCapabilities.mockReturnValue(c);
+      const { unmount } = render(
+        <LiquidGlass mode="standard">
+          <button type="button">Buy</button>
+        </LiquidGlass>,
+      );
+      // Exercise a pointer move so the motion path runs in each tier too.
+      act(() => {
+        fireEvent.mouseMove(document, { clientX: 200, clientY: 60 });
+      });
+      unmount();
+    }
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('SSR safety — renderToString → hydrateRoot (plan 006)', () => {
+  it('hydrates server markup with no hydration-mismatch console.error', async () => {
+    // Use the CONSERVATIVE capabilities for this test: that is exactly what both
+    // the server render and the very first client paint produce (the real upgrade
+    // happens in a mount effect). Holding the mock at conservative caps faithfully
+    // models the server↔first-paint markup that React diffs during hydration.
+    mockCapabilities.mockReturnValue(getConservativeGlassCapabilities());
+
+    const element = (
+      <LiquidGlass>
+        <button type="button">Buy</button>
+      </LiquidGlass>
+    );
+
+    // 1. Server render (no window touched by the markup path; capabilities + the
+    //    measurement effect are both deferred, so SSR is pure + deterministic).
+    const html = renderToString(element);
+    expect(html).toContain('Buy');
+
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    document.body.appendChild(container);
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    // 2. Hydrate the SAME element onto the server markup and flush effects.
+    let root: ReturnType<typeof hydrateRoot> | undefined;
+    await act(async () => {
+      root = hydrateRoot(container, element);
+      // let mount effects (capability upgrade + measurement) flush
+      await Promise.resolve();
+    });
+
+    // 3. Assert React never logged a hydration mismatch. Inspect every call's
+    //    args for the known mismatch signatures rather than just call count, so a
+    //    benign unrelated error wouldn't mask a real mismatch (and vice versa).
+    const mismatch = errorSpy.mock.calls.some((args) =>
+      args.some(
+        (a) =>
+          typeof a === 'string' &&
+          (/hydrat/i.test(a) ||
+            /did not match/i.test(a) ||
+            /Text content does not match/i.test(a) ||
+            /Warning: Text content/i.test(a) ||
+            /server (HTML|rendered)/i.test(a)),
+      ),
+    );
+    expect(mismatch).toBe(false);
+
+    await act(async () => {
+      root?.unmount();
+    });
+    document.body.removeChild(container);
   });
 });

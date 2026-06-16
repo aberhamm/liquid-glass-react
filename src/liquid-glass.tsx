@@ -352,7 +352,7 @@ export function LiquidGlass({
   mouseOffset,
   mouseContainer,
 }: LiquidGlassProps): ReactNode {
-  const { canRefract } = useGlassCapabilities();
+  const { canRefract, supportsBackdropFilter } = useGlassCapabilities();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [dimensions, setDimensions] = useState<Dimensions | null>(null);
   const reducedMotion = useReducedMotion();
@@ -436,7 +436,19 @@ export function LiquidGlass({
   const filterActive = canRefract && measured;
   const filterUrl = filterActive ? `url(#${filterId})` : null;
 
-  const backdropFilter = composeBackdropFilter(blurAmount, saturation, overLight, filterUrl);
+  // Tiered render selector (plan 006). All tiers share IDENTICAL box geometry
+  // (dimensions/padding/border-radius), so degrading between them never causes a
+  // layout shift — only the surface fill/filter differs.
+  //   - TIER 1 full: canRefract — backdrop blur+saturate WITH url(#id) refraction
+  //     + the SVG <filter>.
+  //   - TIER 2 frosted: supportsBackdropFilter && !canRefract (Firefox/Safari) —
+  //     backdrop blur+saturate, rim/highlight, bevel + motion, but NO SVG filter.
+  //   - TIER 3 solid: !supportsBackdropFilter — a translucent solid background so
+  //     content stays legible (no transparent unreadable box); still rim + bevel
+  //     + motion for polish.
+  const backdropFilter = supportsBackdropFilter
+    ? composeBackdropFilter(blurAmount, saturation, overLight, filterUrl)
+    : undefined;
 
   const radius = toCssLength(cornerRadius);
 
@@ -498,13 +510,27 @@ export function LiquidGlass({
     pointerEvents: 'none',
   };
 
+  // TIER 3 solid translucent fill: used only when backdrop-filter is unsupported.
+  // A semi-opaque scheme-aware background keeps content legible instead of leaving
+  // a transparent box. When backdrop-filter IS supported (tiers 1/2) the blurred
+  // backdrop carries the glass look, so no solid fill is applied.
+  const solidFallbackBackground = supportsBackdropFilter
+    ? undefined
+    : prefersDark
+      ? 'rgba(30, 30, 35, 0.55)'
+      : 'rgba(255, 255, 255, 0.55)';
+
   const surfaceStyle: CSSProperties = {
     position: 'absolute',
     inset: 0,
     borderRadius: radius,
     overflow: 'hidden',
-    backdropFilter,
-    WebkitBackdropFilter: backdropFilter,
+    // Tiers 1/2 carry the frosted backdrop (with -webkit- prefix); tier 3 omits
+    // the filter entirely (no orphaned/unsupported declaration) and uses the
+    // translucent solid fill below.
+    ...(backdropFilter
+      ? { backdropFilter, WebkitBackdropFilter: backdropFilter }
+      : { background: solidFallbackBackground }),
     // Pure-CSS beveled rim — renders in every browser, independent of canRefract.
     boxShadow: edgeShadow,
     transform: surfaceTransform,

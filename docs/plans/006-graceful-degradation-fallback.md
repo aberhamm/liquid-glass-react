@@ -1,13 +1,16 @@
 ---
 id: 006
 title: Graceful degradation fallback and SSR safety
-status: in-progress
+status: done
 blocked-by: [004, 005]
 priority:
 goal: liquid-glass-component-library
 allows-migrations: false
 needs-review: none
 created: 2026-06-13
+completed: 2026-06-16
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -103,3 +106,29 @@ Checks:
 - [assert] `pnpm test -- liquid-glass 2>&1 | tail -8` contains `pass`
 - [assert] `grep -qi "degraded" docs/PARITY.md && echo found` outputs `found`
 - [manual] Render in Firefox + Safari: a clean frosted-glass card with rim + motion, no empty box, no console errors.
+
+## Implementation Notes
+
+Implemented deliberate three-tier graceful degradation: Tier 1 full (canRefract →
+backdrop-filter url(#id) + SVG filter + rim + motion), Tier 2 frosted
+(supportsBackdropFilter && !canRefract → blur+saturate with `-webkit-` prefix,
+inset-shadow bevel, rim, motion, NO SVG filter — Firefox/Safari), Tier 3 solid
+(!supportsBackdropFilter → scheme-aware translucent rgba background). All tiers share
+identical box geometry (cross-tier geometry test → no layout shift). Added
+capability-matrix render tests, a console.error/warn spy across all tiers (none called),
+layout-stability assertions, and the executable `renderToString()` → `hydrateRoot()`
+hydration test with a console.error spy confirming NO hydration-mismatch warning.
+PARITY.md extended with a concrete "Degradation tiers" section. 87/87 tests pass; health
+PASS 9.1; no 004/005 regressions.
+
+Deviation: jsdom's CSSOM drops vendor-prefixed `-webkit-backdrop-filter` on read-back, so
+that prefix is asserted via server-serialized markup (renderToString) rather than the
+jsdom style object — the component emits both keys correctly.
+
+**Files changed:**
+
+- `src/liquid-glass.tsx` (modified)
+- `src/liquid-glass.test.tsx` (modified)
+- `docs/PARITY.md` (modified)
+
+**Commit:** `7377968` — feat(fallback): tiered graceful degradation + SSR hydration safety
