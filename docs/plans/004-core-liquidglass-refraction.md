@@ -1,7 +1,7 @@
 ---
 id: 004
 title: Core <LiquidGlass> refraction component
-status: pending
+status: in-progress
 blocked-by: [002, 003]
 priority:
 goal: liquid-glass-component-library
