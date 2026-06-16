@@ -1,9 +1,30 @@
 {
   "name": "@aberhamm/liquid-glass-react",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "An independent React reimplementation of a liquid-glass UI component library.",
   "type": "module",
   "license": "MIT",
+  "author": "Matthew Aberham",
+  "keywords": [
+    "react",
+    "liquid-glass",
+    "glassmorphism",
+    "backdrop-filter",
+    "svg-filter",
+    "displacement-map",
+    "glass",
+    "ui",
+    "components",
+    "refraction"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aberhamm/liquid-glass-react.git"
+  },
+  "homepage": "https://github.com/aberhamm/liquid-glass-react#readme",
+  "bugs": {
+    "url": "https://github.com/aberhamm/liquid-glass-react/issues"
+  },
   "packageManager": "pnpm@10.33.3",
   "sideEffects": ["**/*.css"],
   "files": ["dist"],
@@ -12,9 +33,14 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./styles.css": "./dist/liquid-glass-react.css"
   },
@@ -34,13 +60,17 @@
     "storybook": "storybook dev -p 6006 --no-open",
     "build-storybook": "storybook build",
     "e2e": "pnpm build-storybook && playwright test",
-    "e2e:ui": "pnpm build-storybook && playwright test --ui"
+    "e2e:ui": "pnpm build-storybook && playwright test --ui",
+    "attw": "attw --pack . --exclude-entrypoints ./styles.css",
+    "pack:check": "npm pack --dry-run",
+    "prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "peerDependencies": {
     "react": ">=18",
     "react-dom": ">=18"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.3",
     "@biomejs/biome": "^1.9.4",
     "@playwright/test": "^1.61.0",
     "@storybook/addon-essentials": "^8.6.14",

@@ -1,13 +1,16 @@
 ---
 id: 011
 title: Release polish — docs, publish readiness, extended CI
-status: in-progress
+status: done
 blocked-by: [010, 012]
 priority:
 goal: liquid-glass-component-library
 allows-migrations: false
 needs-review: none
 created: 2026-06-13
+completed: 2026-06-16
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -98,3 +101,43 @@ Checks:
 - [assert] `grep -qiE "chrom" README.md && grep -qiE "firefox|safari" README.md && echo found` outputs `found`
 - [cmd] `test -f LICENSE`
 - [manual] Read the README as a new user: install → first working example takes under 2 minutes.
+
+## Implementation Notes
+
+Wrote the full consumer README (install, CSS-import note, copy-pasteable quick-starts for
+all four components, asChild pattern, full LiquidGlass prop table + component tables from
+src/types.ts, the five `mode` options, the capability hook/`canRefract` gate, and a
+browser-support matrix consistent with docs/PARITY.md). Added an MIT LICENSE with an
+independent-reimplementation attribution paragraph (rdev/liquid-glass-react,
+shuding/liquid-glass). Finalized package.json (version 0.1.0, keywords,
+repository/homepage/bugs, author, attw + pack:check + prepublishOnly scripts). Extended CI
+to install→lint→typecheck→test→build→build-storybook→playwright with pnpm +
+Playwright-browser caching.
+
+Pack-check: `npm pack --dry-run` ships only LICENSE, README, dist/* (incl.
+liquid-glass-react.css and index.d.cts), and package.json — CLEAN (no src/tests/stories/
+e2e), CSS positively present. attw: the `.` entry is fully green across
+node10/node16-CJS/node16-ESM/bundler — fixed a genuine "masquerading as ESM" by emitting a
+CJS-flavored `index.d.cts` (closeBundle vite plugin) and switching exports to per-format
+conditional types; the typeless `./styles.css` subpath is excluded (documented benign).
+Health PASS 9.1.
+
+Deviations: documented `padding` default as the actual runtime value `'24px 32px'` (the
+types.ts JSDoc said `'24px'`); the pixel-diff visual baseline self-skips on non-darwin
+(Linux CI stays green) while still running and passing locally on macOS as the
+release-blocking gate.
+
+**Files changed:**
+
+- `README.md` (modified)
+- `package.json` (modified — v0.1.0, publish fields, per-format conditional exports, attw)
+- `pnpm-lock.yaml` (modified)
+- `vite.config.ts` (modified — closeBundle plugin emitting index.d.cts)
+- `.github/workflows/ci.yml` (modified — extended gate + browser caching)
+- `e2e/refraction.spec.ts` (modified — pixel-diff self-skips on non-darwin)
+- `LICENSE` (created — MIT + attribution)
+- `test/consumer-fixture/esm.mjs` (created)
+- `test/consumer-fixture/cjs.cjs` (created)
+- `test/consumer-fixture/README.md` (created)
+
+**Commit:** `2e671c2` — chore(release): README, LICENSE, publish readiness, extended CI

@@ -1,6 +1,33 @@
+import { copyFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { defineConfig } from 'vite';
+import { type Plugin, defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
+
+/**
+ * Emit a CommonJS-flavored declaration file (`index.d.cts`) alongside the
+ * ESM `index.d.ts` that vite-plugin-dts produces.
+ *
+ * Because `package.json` is `"type": "module"`, a lone `index.d.ts` is
+ * interpreted as ESM. CJS consumers that `require()` the package would then
+ * resolve ESM-flavored types over a CommonJS runtime — the "masquerading as
+ * ESM" problem flagged by @arethetypeswrong/cli. Duplicating the bundled
+ * declarations to a `.d.cts` (referenced by the `require` condition in the
+ * exports map) gives `require` consumers correctly CJS-interpreted types.
+ *
+ * The content is identical; only the extension (and thus the module-format
+ * interpretation) differs. vite-plugin-dts has already finished by the time
+ * `closeBundle` runs, so the source file exists.
+ */
+function emitCjsDeclaration(): Plugin {
+  return {
+    name: 'emit-cjs-declaration',
+    closeBundle() {
+      const esmDts = resolve(__dirname, 'dist/index.d.ts');
+      const cjsDts = resolve(__dirname, 'dist/index.d.cts');
+      copyFileSync(esmDts, cjsDts);
+    },
+  };
+}
 
 // NOTE (plan 008 boundary): This config covers ONLY the library build.
 // Storybook (008) and the Vitest test runner config live in separate files
@@ -22,6 +49,7 @@ export default defineConfig({
       include: ['src'],
       exclude: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/**/*.stories.tsx'],
     }),
+    emitCjsDeclaration(),
   ],
   build: {
     lib: {
