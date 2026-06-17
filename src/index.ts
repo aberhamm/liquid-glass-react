@@ -51,6 +51,7 @@ export {
 // coordinate motion externally or reuse the bevel.
 export { useReducedMotion } from './use-reduced-motion';
 export { useReducedTransparency } from './use-reduced-transparency';
+export { usePrefersContrast } from './use-prefers-contrast';
 export {
   useMousePosition,
   type MouseContainer,

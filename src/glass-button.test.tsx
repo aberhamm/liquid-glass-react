@@ -20,6 +20,7 @@ function caps(canRefract: boolean, supportsBackdropFilter = canRefract): GlassCa
     isFirefox: false,
     prefersReducedMotion: false,
     prefersReducedTransparency: false,
+    prefersContrastMore: false,
     canRefract,
   };
 }

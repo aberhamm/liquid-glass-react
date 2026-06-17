@@ -28,8 +28,15 @@ function stubBrowser(options: {
   backdropFilter: boolean;
   reducedMotion?: boolean;
   reducedTransparency?: boolean;
+  contrastMore?: boolean;
 }) {
-  const { userAgent, backdropFilter, reducedMotion = false, reducedTransparency = false } = options;
+  const {
+    userAgent,
+    backdropFilter,
+    reducedMotion = false,
+    reducedTransparency = false,
+    contrastMore = false,
+  } = options;
 
   vi.stubGlobal('navigator', { userAgent });
 
@@ -49,7 +56,9 @@ function stubBrowser(options: {
         ? reducedMotion
         : query.includes('prefers-reduced-transparency: reduce')
           ? reducedTransparency
-          : false,
+          : query.includes('prefers-contrast: more')
+            ? contrastMore
+            : false,
       media: query,
       onchange: null,
       addEventListener: vi.fn(),
@@ -176,6 +185,33 @@ describe('detectGlassCapabilities — prefers-reduced-transparency', () => {
   });
 });
 
+describe('detectGlassCapabilities — prefers-contrast', () => {
+  it('reflects the prefers-contrast: more media query', () => {
+    stubBrowser({ userAgent: UA.chrome, backdropFilter: true, contrastMore: true });
+    expect(detectGlassCapabilities().prefersContrastMore).toBe(true);
+
+    vi.unstubAllGlobals();
+    stubBrowser({ userAgent: UA.chrome, backdropFilter: true, contrastMore: false });
+    expect(detectGlassCapabilities().prefersContrastMore).toBe(false);
+  });
+
+  it('is independent of the other a11y axes (orthogonal)', () => {
+    stubBrowser({
+      userAgent: UA.chrome,
+      backdropFilter: true,
+      reducedMotion: true,
+      reducedTransparency: true,
+      contrastMore: false,
+    });
+    const caps = detectGlassCapabilities();
+    expect(caps.prefersReducedMotion).toBe(true);
+    expect(caps.prefersReducedTransparency).toBe(true);
+    expect(caps.prefersContrastMore).toBe(false);
+    // Increased contrast does not gate refraction at the capability layer.
+    expect(caps.canRefract).toBe(true);
+  });
+});
+
 describe('detectGlassCapabilities — SSR / partial environment', () => {
   const ALL_FALSE = {
     supportsBackdropFilter: false,
@@ -184,6 +220,7 @@ describe('detectGlassCapabilities — SSR / partial environment', () => {
     isFirefox: false,
     prefersReducedMotion: false,
     prefersReducedTransparency: false,
+    prefersContrastMore: false,
     canRefract: false,
   };
 
@@ -227,6 +264,7 @@ describe('detectGlassCapabilities — SSR / partial environment', () => {
     expect(caps?.supportsBackdropFilter).toBe(false);
     expect(caps?.prefersReducedMotion).toBe(false);
     expect(caps?.prefersReducedTransparency).toBe(false);
+    expect(caps?.prefersContrastMore).toBe(false);
     expect(caps?.canRefract).toBe(false);
   });
 });

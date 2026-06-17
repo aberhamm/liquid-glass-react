@@ -44,6 +44,7 @@ import { calculateDirectionalScale, calculateElasticTranslation } from './motion
 import type { DisplacementMode, LiquidGlassProps } from './types';
 import { useGlassCapabilities } from './use-glass-capabilities';
 import { useMousePosition } from './use-mouse-position';
+import { usePrefersContrast } from './use-prefers-contrast';
 import { useReducedMotion } from './use-reduced-motion';
 import { useReducedTransparency } from './use-reduced-transparency';
 
@@ -101,6 +102,50 @@ const REDUCED_TRANSPARENCY_SOLID_FILL = {
   light: 'rgba(255, 255, 255, 0.92)',
   dark: 'rgba(30, 30, 35, 0.92)',
 } as const;
+
+/**
+ * Increased-contrast (a11y plan 014). When `(prefers-contrast: more)` is active
+ * the glass adds a SOLID, visible border and raises content legibility while
+ * toning down decorative refraction artifacts that hurt contrast. This axis is
+ * ORTHOGONAL to the 3 capability tiers AND to reduced-transparency (013): both
+ * may be active at once and must stay legible + shift-free.
+ */
+
+/**
+ * Solid border color drawn as an INSET `box-shadow` ring on the surface so the
+ * box geometry is unchanged (no layout shift) — a real `border` would grow the
+ * box or eat into padding. Scheme-aware near-opaque ink/light for a clearly
+ * delineated edge that the soft bevel alone cannot provide.
+ */
+const CONTRAST_BORDER_COLOR = {
+  light: 'rgba(0, 0, 0, 0.92)',
+  dark: 'rgba(255, 255, 255, 0.92)',
+} as const;
+
+/** Inset solid-border ring width (px), prepended to the surface box-shadow. */
+const CONTRAST_BORDER_WIDTH = 2;
+
+/**
+ * More-opaque scheme-aware surface fill under increased contrast: it reduces
+ * the backdrop tint/show-through so foreground content reads at a higher
+ * contrast ratio. Layered over any retained blur (tiers 1/2) or used as the
+ * solid fill (tier 3). At 0.92 alpha it is at least as opaque as the
+ * reduced-transparency fills, so when BOTH a11y axes are active the contrast
+ * fill never undercuts reduced-transparency's opacity intent — contrast wants
+ * MORE opacity, not less, on every tier.
+ */
+const CONTRAST_FILL = {
+  light: 'rgba(255, 255, 255, 0.92)',
+  dark: 'rgba(22, 22, 26, 0.92)',
+} as const;
+
+/**
+ * Under increased contrast, saturation is pinned to 100% (no decorative
+ * vibrancy boost) so the backdrop doesn't push color that competes with
+ * foreground text. The default `saturation` (140) is decorative and harms
+ * contrast, so it is overridden — never raised.
+ */
+const CONTRAST_SATURATION = 100;
 
 function quantize(value: number): number {
   return Math.max(QUANT_GRID, Math.round(value / QUANT_GRID) * QUANT_GRID);
@@ -381,6 +426,7 @@ export function LiquidGlass({
   const [dimensions, setDimensions] = useState<Dimensions | null>(null);
   const reducedMotion = useReducedMotion();
   const reducedTransparency = useReducedTransparency();
+  const prefersContrast = usePrefersContrast();
   const prefersDark = usePrefersDark();
   const [hovered, setHovered] = useState<boolean>(false);
   const [pressed, setPressed] = useState<boolean>(false);
@@ -456,6 +502,14 @@ export function LiquidGlass({
   // / backdrop blur are adjusted for it.
   const effectiveScale = overLight ? displacementScale / 2 : displacementScale;
 
+  // Increased contrast (plan 014) tones down decoration that competes with
+  // foreground legibility: the backdrop saturation boost is pinned to 100% and
+  // the chromatic aberration (which colors the refracted edges) is dropped to 0.
+  // These are no-ops unless the live `(prefers-contrast: more)` hook is true, so
+  // the default-off output is byte-for-byte unchanged.
+  const effectiveSaturation = prefersContrast ? CONTRAST_SATURATION : saturation;
+  const effectiveAberration = prefersContrast ? 0 : aberrationIntensity;
+
   const measured = dimensions !== null && dimensions.width > 0 && dimensions.height > 0;
   // Attach the filter only when refraction is supported AND we have real dims.
   // `prefers-reduced-transparency: reduce` is ORTHOGONAL to the 3-tier gate: it
@@ -475,7 +529,7 @@ export function LiquidGlass({
   //     content stays legible (no transparent unreadable box); still rim + bevel
   //     + motion for polish.
   const backdropFilter = supportsBackdropFilter
-    ? composeBackdropFilter(blurAmount, saturation, overLight, filterUrl)
+    ? composeBackdropFilter(blurAmount, effectiveSaturation, overLight, filterUrl)
     : undefined;
 
   const radius = toCssLength(cornerRadius);
@@ -509,6 +563,16 @@ export function LiquidGlass({
   // Bevel rim variant keyed off prefers-color-scheme.
   const edgeShadow = getGlassEdgeShadow(prefersDark ? 'dark' : 'light');
 
+  // Increased contrast (plan 014): a SOLID, visible border the soft bevel can't
+  // provide. Drawn as an INSET box-shadow ring PREPENDED to the bevel so the box
+  // geometry is unchanged (no border-box growth, no padding loss → no layout
+  // shift). No-op unless the live hook is true, so default-off is unchanged.
+  const surfaceBoxShadow = prefersContrast
+    ? `inset 0 0 0 ${CONTRAST_BORDER_WIDTH}px ${
+        CONTRAST_BORDER_COLOR[prefersDark ? 'dark' : 'light']
+      }, ${edgeShadow}`
+    : edgeShadow;
+
   // Hover brightens the highlight layers slightly.
   const highlightOpacity = hovered ? 0.9 : 0.6;
   const borderOpacity = hovered ? 0.55 : 0.35;
@@ -540,7 +604,7 @@ export function LiquidGlass({
 
   const scheme = prefersDark ? 'dark' : 'light';
 
-  // Surface fill selection. Three independent cases, none of which change box
+  // Surface fill selection. Independent cases, none of which change box
   // geometry:
   //   - Default tiers 1/2 (backdrop-filter supported): NO fill — the blurred
   //     backdrop carries the glass look. (Byte-for-byte unchanged.)
@@ -549,8 +613,14 @@ export function LiquidGlass({
   //   - Reduced transparency ON: a MORE-opaque scheme-aware fill on every tier —
   //     layered over the blurred backdrop on tiers 1/2, or a higher-alpha solid on
   //     tier 3 — so the material reads as static frosted glass with no live lensing.
+  //   - Increased contrast ON: a more-opaque scheme-aware fill on EVERY tier so
+  //     foreground content reads at a higher contrast ratio. This composes with
+  //     reduced-transparency (both axes may be active) and is checked FIRST since
+  //     legibility is the stronger requirement; it never changes box geometry.
   let surfaceBackground: string | undefined;
-  if (reducedTransparency) {
+  if (prefersContrast) {
+    surfaceBackground = CONTRAST_FILL[scheme];
+  } else if (reducedTransparency) {
     surfaceBackground = supportsBackdropFilter
       ? REDUCED_TRANSPARENCY_FILL[scheme]
       : REDUCED_TRANSPARENCY_SOLID_FILL[scheme];
@@ -571,7 +641,9 @@ export function LiquidGlass({
     ...(backdropFilter ? { backdropFilter, WebkitBackdropFilter: backdropFilter } : {}),
     ...(surfaceBackground ? { background: surfaceBackground } : {}),
     // Pure-CSS beveled rim — renders in every browser, independent of canRefract.
-    boxShadow: edgeShadow,
+    // Under increased contrast a solid inset border ring is prepended (geometry
+    // unchanged); otherwise this is exactly the bevel.
+    boxShadow: surfaceBoxShadow,
     transform: surfaceTransform,
     transition: 'transform 120ms ease-out',
     // Keep the surface strictly behind the content layer.
@@ -646,7 +718,7 @@ export function LiquidGlass({
             width={dimensions.width}
             height={dimensions.height}
             effectiveScale={effectiveScale}
-            aberrationIntensity={aberrationIntensity}
+            aberrationIntensity={effectiveAberration}
           />
         ) : null}
       </div>

@@ -33,6 +33,7 @@ function caps(canRefract: boolean, supportsBackdropFilter = canRefract): GlassCa
     isFirefox: false,
     prefersReducedMotion: false,
     prefersReducedTransparency: false,
+    prefersContrastMore: false,
     canRefract,
   };
 }
@@ -64,9 +65,9 @@ function stubLayout(width = 320, height = 96): void {
  * conflate them — both query strings contain `reduce`).
  */
 function installMatchMedia(
-  opts: { reducedMotion?: boolean; reducedTransparency?: boolean } = {},
+  opts: { reducedMotion?: boolean; reducedTransparency?: boolean; contrastMore?: boolean } = {},
 ): void {
-  const { reducedMotion = false, reducedTransparency = false } = opts;
+  const { reducedMotion = false, reducedTransparency = false, contrastMore = false } = opts;
   vi.stubGlobal(
     'matchMedia',
     vi.fn((query: string) => ({
@@ -74,7 +75,9 @@ function installMatchMedia(
         ? reducedMotion
         : query.includes('prefers-reduced-transparency: reduce')
           ? reducedTransparency
-          : false,
+          : query.includes('prefers-contrast: more')
+            ? contrastMore
+            : false,
       media: query,
       onchange: null,
       addEventListener: vi.fn(),
@@ -814,6 +817,203 @@ describe('prefers-reduced-transparency (plan 013)', () => {
     for (const c of [caps(true), caps(false, true), caps(false, false)]) {
       mockCapabilities.mockReturnValue(c);
       installMatchMedia({ reducedTransparency: true });
+      const { unmount } = render(
+        <LiquidGlass mode="standard">
+          <button type="button">Buy</button>
+        </LiquidGlass>,
+      );
+      act(() => {
+        fireEvent.mouseMove(document, { clientX: 200, clientY: 60 });
+      });
+      unmount();
+    }
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Plan 014 — prefers-contrast: solid border, raised contrast, less tint.
+// ---------------------------------------------------------------------------
+
+describe('prefers-contrast: more (plan 014)', () => {
+  /** Read the wrapper element's geometry-defining inline styles. */
+  function geometry(container: HTMLElement): {
+    padding: string;
+    borderRadius: string;
+    display: string;
+  } {
+    const wrapper = container.firstElementChild as HTMLElement;
+    return {
+      padding: wrapper.style.padding,
+      borderRadius: wrapper.style.borderRadius,
+      display: wrapper.style.display,
+    };
+  }
+
+  it('adds a SOLID inset border ring (not just the soft bevel) when contrast is on', () => {
+    mockCapabilities.mockReturnValue(caps(true));
+    installMatchMedia({ contrastMore: true });
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    const shadow = surface.style.boxShadow;
+    // A solid inset ring: `inset 0 0 0 <n>px <color>` is prepended to the bevel.
+    expect(shadow).toMatch(/^inset 0(px)? 0(px)? 0(px)? 2px/);
+    // The bevel is still present (the contrast ring is additive, not a replace).
+    expect(shadow).toMatch(/inset/);
+  });
+
+  it('does NOT add the solid border ring when contrast is off (bevel only)', () => {
+    mockCapabilities.mockReturnValue(caps(true));
+    installMatchMedia();
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    // No `inset 0 0 0 Npx` solid-border ring in the default output.
+    expect(surface.style.boxShadow).not.toMatch(/^inset 0(px)? 0(px)? 0(px)? 2px/);
+  });
+
+  it('applies a more-opaque surface fill (raised contrast / reduced tint) when on', () => {
+    mockCapabilities.mockReturnValue(caps(true));
+    installMatchMedia({ contrastMore: true });
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    const bg = styleOf(surface, 'background');
+    expect(bg).toMatch(/rgba\(/);
+    expect(bg).not.toBe('');
+    // The blur is retained — this is a fill layered over it, not a tier change.
+    expect(styleOf(surface, 'backdropFilter')).toMatch(/blur\(/);
+  });
+
+  it('pins backdrop saturation to 100% (no decorative vibrancy boost) when on', () => {
+    mockCapabilities.mockReturnValue(caps(true));
+    installMatchMedia({ contrastMore: true });
+    const { container } = render(
+      <LiquidGlass saturation={200}>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const bf = styleOf(getSurface(container), 'backdropFilter');
+    expect(bf).toMatch(/saturate\(100%\)/);
+    expect(bf).not.toMatch(/saturate\(200%\)/);
+  });
+
+  it('drops chromatic aberration (spread collapses) when contrast is on', () => {
+    mockCapabilities.mockReturnValue(caps(true));
+    installMatchMedia({ contrastMore: true });
+    const { container } = render(
+      <LiquidGlass aberrationIntensity={10}>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const scales = [...container.querySelectorAll('feDisplacementMap')].map((m) =>
+      Number(m.getAttribute('scale')),
+    );
+    // With aberration forced to 0, R=G=B → zero spread.
+    const spread = Math.max(...scales) - Math.min(...scales);
+    expect(spread).toBe(0);
+  });
+
+  it('applies the contrast treatment on the FROSTED (Safari/Firefox) tier too', () => {
+    mockCapabilities.mockReturnValue(caps(false, true));
+    installMatchMedia({ contrastMore: true });
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    expect(surface.style.boxShadow).toMatch(/^inset 0(px)? 0(px)? 0(px)? 2px/);
+    expect(styleOf(surface, 'background')).toMatch(/rgba\(/);
+  });
+
+  it('applies the contrast treatment on the SOLID (no-backdrop-filter) tier too', () => {
+    mockCapabilities.mockReturnValue(caps(false, false));
+    installMatchMedia({ contrastMore: true });
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    expect(surface.style.boxShadow).toMatch(/^inset 0(px)? 0(px)? 0(px)? 2px/);
+    expect(styleOf(surface, 'background')).toMatch(/rgba\(/);
+  });
+
+  it('composes with reduced-transparency: both axes active stay legible + shift-free', () => {
+    mockCapabilities.mockReturnValue(caps(true));
+    installMatchMedia({ contrastMore: true, reducedTransparency: true });
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    // Solid border ring present (contrast) AND no live refraction (transparency).
+    expect(surface.style.boxShadow).toMatch(/^inset 0(px)? 0(px)? 0(px)? 2px/);
+    expect(styleOf(surface, 'backdropFilter')).not.toMatch(/url\(#/);
+    expect(container.querySelector('filter')).toBeNull();
+    // An opaque fill is present for legibility.
+    expect(styleOf(surface, 'background')).toMatch(/rgba\(/);
+  });
+
+  it('renders byte-for-byte identical to today when contrast is OFF', () => {
+    mockCapabilities.mockReturnValue(caps(true));
+    installMatchMedia();
+    const { container } = render(
+      <LiquidGlass saturation={200} aberrationIntensity={10}>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    const bf = styleOf(surface, 'backdropFilter');
+    // Refraction present, decorative saturation honored, no extra fill, no ring.
+    expect(bf).toMatch(/url\(#lg-[^)]+\)/);
+    expect(bf).toMatch(/saturate\(200%\)/);
+    expect(styleOf(surface, 'background')).toBe('');
+    expect(surface.style.boxShadow).not.toMatch(/^inset 0(px)? 0(px)? 0(px)? 2px/);
+  });
+
+  it('keeps IDENTICAL box geometry whether contrast is on or off (no layout shift)', () => {
+    const renderWith = (contrastMore: boolean): ReturnType<typeof geometry> => {
+      mockCapabilities.mockReturnValue(caps(true));
+      installMatchMedia({ contrastMore });
+      const { container, unmount } = render(
+        <LiquidGlass padding="12px 20px" cornerRadius={28}>
+          <span>hi</span>
+        </LiquidGlass>,
+      );
+      const geo = geometry(container);
+      unmount();
+      return geo;
+    };
+
+    const off = renderWith(false);
+    const on = renderWith(true);
+    expect(off.padding).toBe('12px 20px');
+    expect(off.borderRadius).toBe('28px');
+    expect(on).toEqual(off);
+  });
+
+  it('renders without console.error / console.warn under increased contrast', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    for (const c of [caps(true), caps(false, true), caps(false, false)]) {
+      mockCapabilities.mockReturnValue(c);
+      installMatchMedia({ contrastMore: true });
       const { unmount } = render(
         <LiquidGlass mode="standard">
           <button type="button">Buy</button>

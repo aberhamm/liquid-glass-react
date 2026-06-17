@@ -87,6 +87,36 @@
   filter: saturate(0.7);
 }
 
+/* Increased contrast (a11y plan 014): the LiquidGlass primitive draws the solid
+   inset border + raised surface fill; here we keep the prebuilt components'
+   foreground + focus ring fully opaque so the ring stays clearly delineated over
+   the now higher-contrast surface. Default (setting off) is unchanged. */
+@media (prefers-contrast: more) {
+  .lg-content {
+    color: var(--lg-fg, rgba(0, 0, 0, 1));
+    text-shadow: none;
+  }
+
+  .lg-button:focus-visible,
+  .lg-segmented-option:has(.lg-segmented-input:focus-visible) {
+    outline: 3px solid var(--lg-focus-ring, rgba(0, 90, 255, 1));
+    outline-offset: 2px;
+    box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.9);
+  }
+}
+
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  .lg-content {
+    color: var(--lg-fg, rgba(255, 255, 255, 1));
+    text-shadow: none;
+  }
+
+  .lg-button:focus-visible,
+  .lg-segmented-option:has(.lg-segmented-input:focus-visible) {
+    box-shadow: 0 0 0 5px rgba(0, 0, 0, 0.9);
+  }
+}
+
 /* --- The press-shine sweep ----------------------------------------- *
  * A brief diagonal highlight that wipes across on :active. Implemented as a
  * pseudo-element so it never affects layout and is purely decorative. It is

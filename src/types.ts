@@ -78,6 +78,17 @@ export type GlassCapabilities = {
    */
   prefersReducedTransparency: boolean;
   /**
+   * Whether the user has requested increased contrast via
+   * `(prefers-contrast: more)`. When `true`, `<LiquidGlass>` adds a solid,
+   * visible inset border, raises content legibility (a more-opaque surface
+   * fill), and tones down decorative saturation/aberration that harms contrast.
+   * Orthogonal to {@link canRefract} AND to {@link prefersReducedTransparency} —
+   * it applies on every tier, composes with reduced-transparency, and changes no
+   * box geometry. The authoritative live source is `usePrefersContrast()`; this
+   * field is a point-in-time snapshot.
+   */
+  prefersContrastMore: boolean;
+  /**
    * The single gate later plans consult: `true` only when the full refraction
    * effect can actually render
    * (`supportsBackdropFilter && supportsSvgBackdropDisplacement`). When `false`,

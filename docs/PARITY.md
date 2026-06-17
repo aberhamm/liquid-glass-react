@@ -106,6 +106,37 @@ is omitted exactly as on Firefox/WebKit) and raises the surface fill opacity. No
 fourth capability tier is introduced. Content stays legible in all combinations,
 and no path emits `console.error` / `console.warn`.
 
+## Accessibility: prefers-contrast (plan 014)
+
+Apple's Liquid Glass honors the OS "Increase Contrast" setting by adding a
+visible border and raising fill/content contrast (macOS Tahoe even couples it to
+Reduce Transparency). We mirror that via the `(prefers-contrast: more)` media
+query. Contrast is the cardinal failure mode of glass UIs, so this is a hard
+legibility requirement, not decoration.
+
+This is an axis **orthogonal** to the three capability tiers AND to
+reduced-transparency (013) — it applies on Chromium (`canRefract`) and on both
+fallback tiers, composes with reduced-transparency (both may be active at once),
+and changes **no box geometry** (no layout shift). The live, authoritative source
+is the `usePrefersContrast()` hook (matchMedia + a `'change'` listener, SSR-safe
+`false` default, reacts to a mid-session toggle); `detectGlassCapabilities()` also
+surfaces a point-in-time `prefersContrastMore` snapshot for parity with
+`prefersReducedMotion` / `prefersReducedTransparency`, but it is not the reactive
+source.
+
+| Setting | Solid border | Surface fill | Backdrop saturation | Chromatic aberration | Box geometry |
+| ------- | ------------ | ------------ | ------------------- | -------------------- | ------------ |
+| **Increase Contrast OFF** (default) | none (soft bevel only) | per-tier default (none on 1/2; ~0.55 solid on tier 3). Byte-for-byte unchanged. | per `saturation` prop (default 140%) | per `aberrationIntensity` prop | unchanged |
+| **Increase Contrast ON** | **Solid, visible border** — a scheme-aware ~0.92-opacity ring drawn as an **inset** `box-shadow` (prepended to the bevel) so it delineates the edge without growing the box. | **More opaque**: ~0.85 scheme-aware fill on **every tier** so foreground content reads at a higher contrast ratio (less backdrop tint/show-through). | **pinned to 100%** (decorative vibrancy boost removed) | **dropped to 0** (the colored refracted edges hurt contrast) | identical (no layout shift) |
+
+The treatment is applied entirely by the `<LiquidGlass>` primitive, so prebuilt
+components (`GlassButton`, `GlassCard`, `GlassSegmentedControl`) inherit it for
+free. `components.css` additionally pins the prebuilt-component foreground ink
+and focus rings to fully opaque under `@media (prefers-contrast: more)` so the
+focus ring stays clearly delineated on the higher-contrast surface. Content stays
+legible in all combinations (including with reduced-transparency also active), and
+no path emits `console.error` / `console.warn`.
+
 ## Capability detection
 
 `detectGlassCapabilities()` (in `src/capabilities.ts`) probes:
@@ -119,6 +150,9 @@ and no path emits `console.error` / `console.warn`.
   alternative is needed.
 - **`supportsSvgBackdropDisplacement`** — derived as `isChromium` (see below).
 - **`prefersReducedMotion`** — `matchMedia('(prefers-reduced-motion: reduce)')`.
+- **`prefersReducedTransparency`** —
+  `matchMedia('(prefers-reduced-transparency: reduce)')`.
+- **`prefersContrastMore`** — `matchMedia('(prefers-contrast: more)')`.
 - **`canRefract`** — `supportsBackdropFilter && supportsSvgBackdropDisplacement`.
 
 ### Why `supportsSvgBackdropDisplacement = isChromium` (positive gate)

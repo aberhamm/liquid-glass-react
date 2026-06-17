@@ -10,4 +10,8 @@ describe('package entry', () => {
   it('re-exports the live useReducedTransparency hook (plan 013)', () => {
     expect(typeof api.useReducedTransparency).toBe('function');
   });
+
+  it('re-exports the live usePrefersContrast hook (plan 014)', () => {
+    expect(typeof api.usePrefersContrast).toBe('function');
+  });
 });

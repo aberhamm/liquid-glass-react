@@ -1,13 +1,16 @@
 ---
 id: 014
 title: Honor prefers-contrast (solid border, raised contrast, less tint)
-status: in-progress
+status: done
 blocked-by: []
 priority:
 goal: apple-tier-liquid-glass-enhancements
 allows-migrations: false
 needs-review: none
 created: 2026-06-16
+completed: 2026-06-17
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -107,3 +110,49 @@ Checks:
 - [cmd] `pnpm exec playwright test a11y --project=chromium`
 - [assert] `grep -qi "prefers-contrast\|increase contrast\|contrast" docs/PARITY.md && echo found` outputs `found`
 - [manual] With Increase Contrast on, the glass shows a solid border and clearly legible content; default rendering is unchanged with the setting off.
+
+## Implementation Notes
+
+Added `prefersContrastMore` to `GlassCapabilities` (SSR-safe
+`matchMedia('(prefers-contrast: more)')` probe in capabilities.ts + the type in
+types.ts) and a new live `usePrefersContrast()` hook mirroring
+`useReducedTransparency`/`useReducedMotion` exactly (matchMedia + `'change'`
+listener, SSR-safe `false` default), exported from index.ts. In
+liquid-glass.tsx, when active the glass gains a SOLID visible border drawn as a
+2px scheme-aware INSET box-shadow ring prepended to the soft bevel (geometry
+unchanged → no layout shift), a more-opaque ~0.92 scheme-aware surface fill on
+every tier, backdrop saturation pinned to 100%, and chromatic aberration forced
+to 0 — all no-ops when off, so default rendering is byte-for-byte unchanged. The
+treatment is orthogonal to the 3 tiers and composes with reduced-transparency
+(013); components.css pins prebuilt-component foreground + focus rings opaque
+under `@media (prefers-contrast: more)`. Unit tests cover the hook and the
+render branch (incl. both-axes composition + geometry stability + silent
+console spy); native `page.emulateMedia({ contrast: 'more' })` Playwright tests
+were added to e2e/a11y.spec.ts. The committed Showcase pixel baseline passed
+without regeneration.
+
+**Note:** the Playwright webServer serves prebuilt `storybook-static` (it does
+not rebuild), so `pnpm build-storybook` must run before e2e; the e2e ring
+matcher targets the browser-reserialized `... 0px 0px 0px 2px inset` form (keyed
+on the 2px spread unique to the contrast ring) while the jsdom unit matcher uses
+the authored `inset 0 0 0 2px` order.
+
+**Files changed:**
+
+- `src/capabilities.ts` (modified)
+- `src/capabilities.test.ts` (modified)
+- `src/types.ts` (modified)
+- `src/liquid-glass.tsx` (modified)
+- `src/liquid-glass.test.tsx` (modified)
+- `src/components.css` (modified)
+- `src/index.ts` (modified)
+- `src/index.test.ts` (modified)
+- `src/glass-button.test.tsx` (modified)
+- `src/glass-card.test.tsx` (modified)
+- `src/glass-segmented-control.test.tsx` (modified)
+- `e2e/a11y.spec.ts` (modified)
+- `docs/PARITY.md` (modified)
+- `src/use-prefers-contrast.ts` (created)
+- `src/use-prefers-contrast.test.ts` (created)
+
+**Commit:** `d00d4fd` — `feat(liquid-glass): honor prefers-contrast`
