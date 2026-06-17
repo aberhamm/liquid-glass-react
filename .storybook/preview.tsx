@@ -5,32 +5,28 @@ import type { ReactElement } from 'react';
 // classes resolve in every story (the source modules import this too, but the
 // global import guarantees styles are present regardless of which story loads).
 import '../src/components.css';
-
-/**
- * Same-origin demo backdrop served by Storybook from `public/demo/` (wired via
- * `staticDirs` in `.storybook/main.ts`). It is a rich, self-authored synthetic
- * image (CC0 — see `public/demo/LICENSE.md`) with high-frequency color, sharp
- * edges and varied regions so `<LiquidGlass>` refraction edge-bending is
- * obvious. Same-origin means a later plan can sample it via canvas without
- * cross-origin taint.
- */
-export const DEMO_BACKDROP_URL = './demo/showcase-backdrop.webp';
+import { PhotosAppBackdrop, SANS_FONT } from '../src/photos-app-backdrop';
 
 /**
  * Backdrop decorator: the liquid-glass effect (refraction, frost, rim light) is
- * only visible against a busy, colorful background. Every story is wrapped in a
- * full-viewport REAL PHOTO so the glass has rich content to refract — the flat
- * CSS gradient hid the headline feature.
+ * only visible against real, varied content. Stories that don't supply their own
+ * full-bleed surface are wrapped in a calm, realistic Photos / gallery app
+ * (header + responsive grid of scenic gradient thumbnails) so the glass floats
+ * over normal app content — not a loud synthetic image.
  *
- * Parameterizable via `parameters.backdrop`:
+ * It also sets the clean system sans-serif globally, so every story that DOES
+ * inherit from the decorator renders in sans (never the browser default serif).
+ * Stories that opt out with `noBackdrop` carry the font explicitly themselves.
+ *
+ * Parameterizable via `parameters`:
  *   - `noBackdrop: true`  — opt out entirely (stories that supply their own
- *     full-bleed surface: Showcase, CrossBrowser, ScrollUnderGlass, CheapVsReal).
+ *     full-bleed surface: Showcase, Modes, Draggable, ScrollUnderGlass, etc.).
  *   - `backdrop: false`   — opt out (alias).
- *   - `backdrop: 'gradient'` — keep the legacy flat gradient instead of the photo.
- *   - default                — the same-origin demo photo.
+ *   - `backdrop: 'plain'` — a calm neutral surface (no photos grid) for stories
+ *     that just need a quiet, legible canvas (e.g. CrossBrowser, Playground).
+ *   - default                — the Photos-app grid behind a centered story.
  *
- * The decorator adds NO animation, so it is inherently reduced-motion-safe; any
- * motion lives in individual stories behind `prefers-reduced-motion`.
+ * The decorator adds NO animation, so it is inherently reduced-motion-safe.
  */
 const withBackdrop: Decorator = (Story, context): ReactElement => {
   const { noBackdrop, backdrop } = context.parameters;
@@ -38,26 +34,45 @@ const withBackdrop: Decorator = (Story, context): ReactElement => {
     return <Story />;
   }
 
-  const usePhoto = backdrop !== 'gradient';
-  const background = usePhoto
-    ? `center / cover no-repeat url("${DEMO_BACKDROP_URL}")`
-    : 'linear-gradient(135deg, #ff6b6b 0%, #f7b733 25%, #4ecdc4 55%, #556270 100%)';
+  if (backdrop === 'plain') {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '4rem',
+          boxSizing: 'border-box',
+          fontFamily: SANS_FONT,
+          background: 'linear-gradient(180deg, #fbfcfe 0%, #eef1f6 100%)',
+        }}
+      >
+        <Story />
+      </div>
+    );
+  }
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        width: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '4rem',
-        boxSizing: 'border-box',
-        background,
-      }}
-    >
-      <Story />
-    </div>
+    <PhotosAppBackdrop>
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '4rem',
+          boxSizing: 'border-box',
+          pointerEvents: 'none',
+        }}
+      >
+        <div style={{ pointerEvents: 'auto' }}>
+          <Story />
+        </div>
+      </div>
+    </PhotosAppBackdrop>
   );
 };
 

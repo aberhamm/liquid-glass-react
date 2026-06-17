@@ -1,24 +1,19 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { type ReactElement, useCallback, useRef, useState } from 'react';
 import { LiquidGlass } from './liquid-glass';
+import { PhotosAppBackdrop, SANS_FONT, photoTileBackground } from './photos-app-backdrop';
 import type { DisplacementMode, MousePos } from './types';
-
-/**
- * Same-origin demo backdrop (CC0, self-authored — see `public/demo/LICENSE.md`),
- * served by Storybook from `public/demo/` via `staticDirs`. A rich synthetic
- * image with high-frequency color + sharp edges so refraction edge-bending is
- * obvious. Same-origin so it can be sampled via canvas without CORS taint.
- */
-const DEMO_PHOTO_URL = './demo/showcase-backdrop.webp';
 
 /**
  * `<LiquidGlass>` is the low-level primitive every prebuilt component wraps. The
  * stories below are the interactive documentation surface: the `Playground`
  * exposes every prop as a live control, `Modes` exercises all five displacement
- * algorithms over a real photo, `Showcase` floats glass over the demo photo, and
- * the `Draggable` / `ScrollUnderGlass` / `CheapVsReal` stories let the viewer
- * SEE refraction by moving content under the glass. Full refraction renders in
- * Chromium and degrades cleanly elsewhere — see the CrossBrowser story.
+ * algorithms over real app content, `Showcase` floats glass over a calm Photos
+ * app, and the `Draggable` / `ScrollUnderGlass` / `CheapVsReal` stories let the
+ * viewer SEE refraction by moving content under the glass. Full refraction
+ * renders in Chromium and degrades cleanly elsewhere — see the CrossBrowser
+ * story. The shared backdrop is an Apple-Photos-style surface built from
+ * same-origin CSS scenic-gradient tiles (see `./photos-app-backdrop`).
  */
 const meta = {
   title: 'Components/LiquidGlass',
@@ -189,95 +184,100 @@ export const Modes: Story = {
     },
   },
   render: () => (
-    <div
-      style={{
-        minHeight: '100vh',
-        width: '100%',
-        boxSizing: 'border-box',
-        padding: '4rem 1.5rem',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: `center / cover no-repeat url("${DEMO_PHOTO_URL}")`,
-      }}
-    >
+    <PhotosAppBackdrop>
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: '2rem',
-          width: '100%',
-          maxWidth: '64rem',
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '4rem 1.5rem',
+          boxSizing: 'border-box',
+          pointerEvents: 'none',
         }}
       >
-        {MODES.map(({ mode, blurb }) => (
-          <figure
-            key={mode}
-            style={{
-              margin: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '0.75rem',
-            }}
-          >
-            <LiquidGlass
-              mode={mode}
-              cornerRadius={28}
-              padding="28px 36px"
-              displacementScale={110}
-              aberrationIntensity={4}
-            >
-              {glassLabel(mode)}
-            </LiquidGlass>
-            <figcaption
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: '2rem',
+            width: '100%',
+            maxWidth: '64rem',
+            pointerEvents: 'auto',
+          }}
+        >
+          {MODES.map(({ mode, blurb }) => (
+            <figure
+              key={mode}
               style={{
-                color: '#fff',
-                fontSize: '0.8125rem',
-                textAlign: 'center',
-                maxWidth: '16rem',
-                textShadow: '0 1px 3px rgba(0,0,0,0.7)',
+                margin: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '0.75rem',
               }}
             >
-              <strong style={{ textTransform: 'capitalize' }}>{mode}</strong>
-              <br />
-              {blurb}
-            </figcaption>
-          </figure>
-        ))}
+              <LiquidGlass
+                mode={mode}
+                cornerRadius={28}
+                padding="28px 36px"
+                displacementScale={110}
+                aberrationIntensity={4}
+              >
+                {glassLabel(mode)}
+              </LiquidGlass>
+              <figcaption
+                style={{
+                  color: '#1e293b',
+                  fontSize: '0.8125rem',
+                  textAlign: 'center',
+                  maxWidth: '16rem',
+                  fontFamily: SANS_FONT,
+                  background: 'rgba(255,255,255,0.7)',
+                  padding: '0.4rem 0.6rem',
+                  borderRadius: 10,
+                }}
+              >
+                <strong style={{ textTransform: 'capitalize' }}>{mode}</strong>
+                <br />
+                {blurb}
+              </figcaption>
+            </figure>
+          ))}
+        </div>
       </div>
-    </div>
+    </PhotosAppBackdrop>
   ),
 };
 
 /**
- * A deliberately designed showcase: a glass panel and pill floating over the
- * rich, same-origin demo PHOTO. A slow pan of the photo background drives motion
- * under the glass so refraction edge-bending reads clearly; under
- * `prefers-reduced-motion: reduce` the pan is dropped for a static backdrop.
+ * A deliberately designed showcase: a glass card + pill floating as a toolbar
+ * over a calm, realistic Photos app (header + responsive grid of scenic
+ * thumbnails). The photo grid is intentionally STATIC — calmer reads better and
+ * is inherently reduced-motion-safe; the cursor-elastic follow on the glass
+ * itself still demonstrates the refraction over real content.
  */
 export const Showcase: Story = {
   args: { children: null },
   parameters: {
     layout: 'fullscreen',
-    // Supplies its own full-bleed photo backdrop — opt out of the global one.
+    // Supplies its own full-bleed Photos-app surface — opt out of the global one.
     noBackdrop: true,
     docs: {
       description: {
         story:
-          'Glass floating over the rich demo photo so refraction edge-bending and ' +
-          'cursor elasticity are obvious over REAL content (not a flat gradient). ' +
-          'The photo slowly pans beneath the glass; honors prefers-reduced-motion ' +
-          'by falling back to a static backdrop.',
+          'Glass floating as a toolbar/card over a calm Photos app (a grid of ' +
+          'scenic thumbnails) so refraction edge-bending and cursor elasticity are ' +
+          'obvious over REAL app content. The grid is static (reduced-motion-safe); ' +
+          'move your cursor across the panel to feel the elastic follow.',
       },
     },
   },
   render: () => (
-    <div className="lg-showcase">
-      <style>{SHOWCASE_CSS}</style>
-      <div className="lg-showcase__photo" />
-
+    <PhotosAppBackdrop>
       <div className="lg-showcase__stack">
+        <style>{SHOWCASE_CSS}</style>
         <LiquidGlass cornerRadius={28} padding="32px 36px" displacementScale={80} saturation={160}>
           <div style={{ color: '#fff', maxWidth: '22rem' }}>
             <p
@@ -286,7 +286,7 @@ export const Showcase: Story = {
                 fontSize: '0.75rem',
                 letterSpacing: '0.18em',
                 textTransform: 'uppercase',
-                opacity: 0.8,
+                opacity: 0.85,
               }}
             >
               Refraction, live
@@ -295,8 +295,8 @@ export const Showcase: Story = {
               Light bends around the edges
             </h2>
             <p style={{ margin: 0, fontSize: '0.9375rem', lineHeight: 1.5, opacity: 0.92 }}>
-              Move your cursor across the panel to feel the elastic follow. The photo drifts beneath
-              the glass so the displacement reads clearly over real content.
+              Move your cursor across the panel to feel the elastic follow. The glass floats over
+              the photo grid so the displacement reads clearly over real content.
             </p>
           </div>
         </LiquidGlass>
@@ -305,49 +305,25 @@ export const Showcase: Story = {
           <span style={{ color: '#fff', fontWeight: 600, fontSize: '1rem' }}>Get started</span>
         </LiquidGlass>
       </div>
-    </div>
+    </PhotosAppBackdrop>
   ),
 };
 
 const SHOWCASE_CSS = `
-.lg-showcase {
-  position: relative;
-  min-height: 100vh;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4rem 1.5rem;
-  box-sizing: border-box;
-  overflow: hidden;
-  background: #0c1024;
-}
-.lg-showcase__photo {
-  position: absolute;
-  inset: -6% -6% -6% -6%;
-  background: center / cover no-repeat url("${DEMO_PHOTO_URL}");
-  will-change: transform;
-  animation: lg-showcase-pan 24s ease-in-out infinite alternate;
-}
 .lg-showcase__stack {
-  position: relative;
+  position: absolute;
+  inset: 0;
   z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 1.75rem;
+  padding: 4rem 1.5rem;
+  box-sizing: border-box;
+  pointer-events: none;
 }
-@keyframes lg-showcase-pan {
-  0%   { transform: translate3d(-3%, -2%, 0) scale(1.08); }
-  100% { transform: translate3d(3%, 2%, 0) scale(1.12); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .lg-showcase__photo {
-    animation: none;
-    transform: none;
-    inset: 0;
-  }
-}
+.lg-showcase__stack > * { pointer-events: auto; }
 `;
 
 /**
@@ -412,9 +388,11 @@ const DraggableStory = (): ReactElement => {
         // `touch-action: none` lets the panel be dragged on touch screens
         // without the browser hijacking the gesture for scrolling.
         touchAction: 'none',
-        background: `center / cover no-repeat url("${DEMO_PHOTO_URL}")`,
       }}
     >
+      <PhotosAppBackdrop
+        style={{ position: 'absolute', inset: 0, minHeight: 0, height: '100%', overflow: 'auto' }}
+      />
       <p
         style={{
           position: 'absolute',
@@ -424,15 +402,15 @@ const DraggableStory = (): ReactElement => {
           margin: 0,
           padding: '8px 16px',
           borderRadius: 999,
-          background: 'rgba(0,0,0,0.45)',
+          background: 'rgba(15, 23, 42, 0.78)',
           color: '#fff',
           fontSize: '0.875rem',
-          fontFamily: 'system-ui, sans-serif',
+          fontFamily: SANS_FONT,
           pointerEvents: 'none',
           zIndex: 2,
         }}
       >
-        Drag the panel across the photo — watch the content refract underneath.
+        Drag the panel across the photos — watch the thumbnails refract underneath.
       </p>
 
       <div
@@ -444,6 +422,7 @@ const DraggableStory = (): ReactElement => {
           position: 'absolute',
           left: pos.x,
           top: pos.y,
+          zIndex: 3,
           cursor: dragging.current ? 'grabbing' : 'grab',
           touchAction: 'none',
         }}
@@ -497,8 +476,9 @@ const SCROLL_UNDER_CSS = `
   height: 100vh;
   width: 100%;
   overflow-y: auto;
-  background: #0c1024;
+  background: linear-gradient(180deg, #fbfcfe 0%, #eef1f6 100%);
   scroll-behavior: smooth;
+  font-family: ${SANS_FONT};
 }
 .lg-scroll__col {
   max-width: 36rem;
@@ -509,15 +489,27 @@ const SCROLL_UNDER_CSS = `
   gap: 1.25rem;
 }
 .lg-scroll__card {
+  position: relative;
   border-radius: 18px;
   padding: 1.5rem 1.5rem;
-  min-height: 7rem;
-  color: #0c1024;
-  font-family: system-ui, sans-serif;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-  background-size: cover;
-  background-position: center;
+  min-height: 8rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.22);
+  overflow: hidden;
 }
+/* A legibility scrim so the white caption reads over any scenic tile. */
+.lg-scroll__card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(15,23,42,0) 30%, rgba(15,23,42,0.55) 100%);
+  pointer-events: none;
+}
+.lg-scroll__card h3,
+.lg-scroll__card p { position: relative; z-index: 1; text-shadow: 0 1px 4px rgba(0,0,0,0.45); }
 .lg-scroll__card h3 { margin: 0 0 0.4rem; font-size: 1.1rem; }
 .lg-scroll__card p { margin: 0; font-size: 0.9rem; line-height: 1.5; }
 .lg-scroll__bar {
@@ -574,10 +566,9 @@ const ScrollUnderGlassStory = (): ReactElement => {
             key={c.t}
             className="lg-scroll__card"
             style={{
-              // Slice the demo photo so each card shows a different busy region
-              // moving under the glass as the column scrolls.
-              backgroundImage: `linear-gradient(rgba(255,255,255,0.78), rgba(255,255,255,0.78)), url("${DEMO_PHOTO_URL}")`,
-              backgroundPosition: `${(i * 137) % 100}% ${(i * 53) % 100}%`,
+              // Each card is a different scenic tile, so a varied region moves
+              // under the glass bar as the column scrolls.
+              background: photoTileBackground(i),
             }}
           >
             <h3>{c.t}</h3>
@@ -635,16 +626,17 @@ const SCROLL_SHADOW_CSS = `
   justify-content: center;
   padding: 3rem 1.5rem;
   box-sizing: border-box;
-  font-family: system-ui, sans-serif;
+  font-family: ${SANS_FONT};
   text-align: center;
 }
 .lg-sas__band--dark {
-  /* Dark/dense: the busy demo photo at full strength. */
-  background: center / cover no-repeat url("${DEMO_PHOTO_URL}");
+  /* Dark "album" section: a deep night-terrace tile so the sampler reads DARK
+     and the shadow deepens. A solid-color fill keeps the luminance unambiguous. */
+  background: #1b2140;
   color: #fff;
 }
 .lg-sas__band--light {
-  /* Light/solid: a near-white flat fill — shadow should ease here. */
+  /* Light "album" section: a near-white flat fill — shadow should ease here. */
   background: #f4f5f8;
   color: #1a1d26;
 }
@@ -758,8 +750,14 @@ const CHEAP_VS_REAL_CSS = `
   gap: 2.5rem;
   align-items: center;
   justify-items: center;
-  background: center / cover no-repeat url("${DEMO_PHOTO_URL}");
-  font-family: system-ui, sans-serif;
+  /* A busy but tasteful scenic surface (same family as the photo tiles) so both
+     panels sit over identical, varied content — the difference between blur and
+     real displacement reads at the edges. */
+  background:
+    radial-gradient(circle at 22% 28%, rgba(255,255,255,0.35), transparent 42%),
+    radial-gradient(circle at 78% 70%, rgba(255,255,255,0.25), transparent 46%),
+    linear-gradient(150deg, #f4c98f 0%, #6db5c9 38%, #6f9d5f 70%, #5d4b86 100%);
+  font-family: ${SANS_FONT};
 }
 .lg-cvr__cell { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
 .lg-cvr__cheap {
@@ -856,10 +854,8 @@ export const Specular: Story = {
     },
   },
   render: () => (
-    <div className="lg-spec">
+    <PhotosAppBackdrop>
       <style>{SPECULAR_CSS}</style>
-      <div className="lg-spec__photo" />
-
       <div className="lg-spec__stack">
         <LiquidGlass
           cornerRadius={28}
@@ -901,36 +897,25 @@ export const Specular: Story = {
           </span>
         </LiquidGlass>
       </div>
-    </div>
+    </PhotosAppBackdrop>
   ),
 };
 
 const SPECULAR_CSS = `
-.lg-spec {
-  position: relative;
-  min-height: 100vh;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4rem 1.5rem;
-  box-sizing: border-box;
-  overflow: hidden;
-  background: #0c1024;
-}
-.lg-spec__photo {
+.lg-spec__stack {
   position: absolute;
   inset: 0;
-  background: center / cover no-repeat url("${DEMO_PHOTO_URL}");
-}
-.lg-spec__stack {
-  position: relative;
   z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 1.75rem;
+  padding: 4rem 1.5rem;
+  box-sizing: border-box;
+  pointer-events: none;
 }
+.lg-spec__stack > * { pointer-events: auto; }
 `;
 
 /**
@@ -1018,19 +1003,22 @@ const ADAPTIVE_CSS = `
   box-sizing: border-box;
   overflow: hidden;
   background: #0c1024;
+  font-family: ${SANS_FONT};
 }
-/* Bright half (left): a SOLID near-white background so the default canvas-free
-   DOM-background sampler (plan 017) reads it as a LIGHT scheme. */
+/* Bright "album" (left): a SOLID near-white background so the default
+   canvas-free DOM-background sampler (plan 017) reads it as a LIGHT scheme.
+   Sampling a CSS gradient is unsupported, so this region MUST stay solid. */
 .lg-adaptive__bright {
   position: absolute;
   inset: 0 50% 0 0;
   background-color: #f2f5fb;
 }
-/* Dark half (right): the rich same-origin demo photo (dark, busy). */
+/* Dark "album" (right): a SOLID deep tone so the sampler reads a DARK scheme.
+   Also solid (not a gradient/photo) so the light↔dark flip stays unambiguous. */
 .lg-adaptive__dark {
   position: absolute;
   inset: 0 0 0 50%;
-  background: center / cover no-repeat url("${DEMO_PHOTO_URL}");
+  background-color: #161b2e;
 }
 .lg-adaptive__row {
   position: relative;
@@ -1081,10 +1069,8 @@ export const Variants: Story = {
     },
   },
   render: () => (
-    <div className="lg-variants">
+    <PhotosAppBackdrop>
       <style>{VARIANTS_CSS}</style>
-      <div className="lg-variants__photo" />
-
       <div className="lg-variants__row">
         <figure className="lg-variants__cell">
           <LiquidGlass
@@ -1123,38 +1109,26 @@ export const Variants: Story = {
           </figcaption>
         </figure>
       </div>
-    </div>
+    </PhotosAppBackdrop>
   ),
 };
 
 const VARIANTS_CSS = `
-.lg-variants {
-  position: relative;
-  min-height: 100vh;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4rem 1.5rem;
-  box-sizing: border-box;
-  overflow: hidden;
-  background: #0c1024;
-  font-family: system-ui, sans-serif;
-}
-.lg-variants__photo {
+.lg-variants__row {
   position: absolute;
   inset: 0;
-  background: center / cover no-repeat url("${DEMO_PHOTO_URL}");
-}
-.lg-variants__row {
-  position: relative;
   z-index: 1;
   display: flex;
   flex-wrap: wrap;
   gap: 4rem;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
+  padding: 4rem 1.5rem;
+  box-sizing: border-box;
+  font-family: ${SANS_FONT};
+  pointer-events: none;
 }
+.lg-variants__cell { pointer-events: auto; }
 .lg-variants__cell {
   margin: 0;
   display: flex;
@@ -1167,9 +1141,11 @@ const VARIANTS_CSS = `
   flex-direction: column;
   gap: 0.3rem;
   text-align: center;
-  color: #fff;
+  color: #1e293b;
   max-width: 18rem;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+  background: rgba(255,255,255,0.72);
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
 }
 .lg-variants__cap strong { font-size: 0.95rem; }
 .lg-variants__cap span { font-size: 0.85rem; opacity: 0.9; }
@@ -1271,8 +1247,8 @@ const CROSS_BROWSER_CSS = `
   color: #fff;
   background:
     radial-gradient(circle at 20% 20%, rgba(255,255,255,0.18), transparent 40%),
-    linear-gradient(135deg, #1f2233 0%, #3b2d63 45%, #7a3b8f 100%);
-  font-family: system-ui, sans-serif;
+    linear-gradient(135deg, #1f2233 0%, #2f3a6b 45%, #3f6f86 100%);
+  font-family: ${SANS_FONT};
 }
 .lg-xb__head { max-width: 64rem; margin: 0 auto 2.5rem; }
 .lg-xb code {
