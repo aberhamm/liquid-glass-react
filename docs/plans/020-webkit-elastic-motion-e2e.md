@@ -1,7 +1,7 @@
 ---
 id: 020
 title: WebKit elastic-motion E2E coverage (closes TODO T5)
-status: pending
+status: in-progress
 blocked-by: []
 priority:
 goal: apple-tier-liquid-glass-enhancements
