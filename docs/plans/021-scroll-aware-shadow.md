@@ -1,7 +1,7 @@
 ---
 id: 021
 title: Scroll-aware shadow (optional polish)
-status: pending
+status: in-progress
 blocked-by: [017]
 priority: 90
 goal: apple-tier-liquid-glass-enhancements
