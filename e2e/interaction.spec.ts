@@ -19,13 +19,12 @@
 
 import { expect, test } from '@playwright/test';
 
-test.describe('Elastic interaction (chromium + firefox)', () => {
-  test('pointer move near glass changes transform', async ({ page, browserName }) => {
-    // WebKit (Safari) has stricter privacy restrictions on mouse simulation
-    // that can make headless pointer tracking unreliable for this kind of test;
-    // limit to chromium + firefox where mousemove simulation is reliable.
-    test.skip(browserName === 'webkit', 'Elastic motion test limited to chromium/firefox');
-
+test.describe('Elastic interaction (chromium + firefox + webkit)', () => {
+  // Elastic cursor-follow motion is pure CSS transform (engine-independent, no
+  // refraction dependency), so it MUST animate in WebKit too — this is the
+  // cross-engine "works everywhere" proof for the headline motion behavior.
+  // Runs unmodified across all three projects (chromium, firefox, webkit).
+  test('pointer move near glass changes transform', async ({ page }) => {
     await page.goto('/iframe.html?id=components-liquidglass--playground&viewMode=story');
     await page.waitForSelector('[data-lg-surface]', { state: 'visible' });
 

@@ -1,13 +1,16 @@
 ---
 id: 020
 title: WebKit elastic-motion E2E coverage (closes TODO T5)
-status: in-progress
+status: done
 blocked-by: []
 priority:
 goal: apple-tier-liquid-glass-enhancements
 allows-migrations: false
 needs-review: none
 created: 2026-06-16
+completed: 2026-06-18
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -75,3 +78,25 @@ Checks:
 - [assert] `pnpm e2e -- interaction 2>&1 | tail -15` contains `passed`
 - [assert] `grep -A2 "T5" TODOS.md | grep -qi "done\|✅" && echo found` outputs `found`
 - [manual] The WebKit interaction test genuinely asserts a transform delta on pointer move.
+
+## Implementation Notes
+
+Closed TODO T5 by removing the `browserName === 'webkit'` skip from the
+elastic-motion describe block in `e2e/interaction.spec.ts` (and dropping the now
+-unused `browserName` param), so the existing at-rest→moved transform-inequality
+assertion now executes in the WebKit project too. The assertion is unchanged and
+genuine — reads inline `transform` before the pointer move, moves to a
+non-centered offset within `ACTIVATION_DISTANCE`, re-reads, and asserts
+inequality (plus a second offset check) — not weakened or render-only, and
+reduced-motion is still never forced (matching the existing pattern).
+`pnpm e2e -- interaction` passes across chromium, firefox, and webkit (5 passed,
+1 skipped — the out-of-scope specular WebKit test owned by plan 016, left
+untouched). No src/runtime/component file changed. The WebKit Playwright binary
+was already installed. T5 marked ✅ done in TODOS.md mirroring T3's format.
+
+**Files changed:**
+
+- `e2e/interaction.spec.ts` (modified)
+- `TODOS.md` (modified)
+
+**Commit:** `539411e` — `test(e2e): assert elastic-motion transform delta in WebKit (closes T5)`

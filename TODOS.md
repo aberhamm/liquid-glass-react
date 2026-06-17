@@ -77,7 +77,15 @@ Status legend: 🔵 not started · 🟡 in progress · ✅ done
 - **Depends on:** 007 (GlassCard `asChild` behavior), 010 (Playwright harness).
 - **Effort:** human ~1h / CC ~10 min.
 
-### 🔵 T5 — WebKit elastic-motion E2E coverage
+### ✅ T5 — WebKit elastic-motion E2E coverage (PULLED IN-SCOPE → plan 020, 2026-06-17)
+- **Resolved:** The elastic pointer-move transform-delta assertion in
+  `e2e/interaction.spec.ts` now runs (and passes) in the WebKit project too — the
+  prior `browserName === 'webkit'` skip on the elastic test was removed, so the
+  at-rest → moved transform-inequality check executes across all three engines
+  (chromium + firefox + webkit). Elastic motion is pure CSS transform with no
+  refraction dependency, so it animates identically in WebKit; the "works
+  everywhere" headline motion claim is now proven on Safari/WebKit. No
+  library/runtime change — test debt only.
 - **What:** An `e2e/interaction.spec.ts` assertion that pointer-move changes the glass
   `transform` in WebKit (not just Chromium + Firefox).
 - **Why:** Plan 010 asserts the elastic transform change only in "at least Chromium and
