@@ -1,7 +1,7 @@
 ---
 id: 013
 title: Honor prefers-reduced-transparency (frostier, no displacement)
-status: pending
+status: in-progress
 blocked-by: []
 priority:
 goal: apple-tier-liquid-glass-enhancements
