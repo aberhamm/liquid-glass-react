@@ -1,7 +1,7 @@
 ---
 id: 014
 title: Honor prefers-contrast (solid border, raised contrast, less tint)
-status: pending
+status: in-progress
 blocked-by: []
 priority:
 goal: apple-tier-liquid-glass-enhancements
