@@ -232,6 +232,54 @@ fallback regardless of `mode`):
 
 ---
 
+## Content-adaptive auto-tint (`adaptiveTint`)
+
+Apple's Liquid Glass adapts its tint and content treatment to the brightness of
+whatever is behind it. `adaptiveTint` brings that to `<LiquidGlass>`: when `true`
+the glass samples the luminance of its backdrop and automatically shifts toward a
+**light** or **dark** treatment — the SAME tint / displacement / blur plumbing
+`overLight` already drives — so foreground content (labels, captions) stays
+legible without hand-tuning. A bright backdrop yields the light treatment with
+dark ink; a dark backdrop yields the default treatment with light ink.
+
+```tsx
+// No overLight needed — the glass figures out light vs dark for you.
+<LiquidGlass adaptiveTint>
+  <span>Adapts to its backdrop</span>
+</LiquidGlass>
+```
+
+It is **additive and opt-in**: `adaptiveTint` defaults to `false`, so the default
+render is byte-for-byte unchanged and the luminance sampler is never loaded on the
+default path.
+
+**Precedence — `overLight` always wins.** `overLight` is the manual override;
+`adaptiveTint` is the auto path. They never fight. When `overLight` is set
+explicitly it short-circuits the auto path:
+
+```ts
+effectiveOverLight = overLight ?? (adaptiveTint && scheme ? scheme === 'light' : false)
+```
+
+**SSR / hydration-safe.** The server and the first client paint render the
+default (unsampled) treatment, so hydration never mismatches; the sampled
+treatment is applied in an effect after mount.
+
+**Graceful degradation.** When the backdrop can't be sampled — a **cross-origin**
+backdrop taints the canvas, there's no canvas, or it's SSR — the reading is
+`sampled: false` and auto-tint silently falls back to `overLight ?? false`. No
+error, no flicker loop, no `console.error`.
+
+**Accessibility.** Under `(prefers-contrast: more)` the increased-contrast
+treatment **wins**: auto-tint never undercuts the high-contrast surface or
+legibility treatment.
+
+> ⚠️ **Limitation.** Auto-tint is **best-effort legibility**. Critical text over
+> unknown or cross-origin backdrops (which cannot be sampled) should be verified
+> manually — the auto path falls back rather than guessing.
+
+---
+
 ## API reference
 
 ### `<LiquidGlass>` (primitive)
@@ -246,7 +294,8 @@ fallback regardless of `mode`):
 | `elasticity` | `number` | `0.15` | Pointer-follow softness; `0` is rigid, higher is rubbery. |
 | `cornerRadius` | `number \| string` | `999` | Corner radius. Number = px; string = CSS length (e.g. `'1rem'`, `'50%'`). |
 | `padding` | `number \| string` | `'24px 32px'` | Inner padding. Number = px; string = CSS shorthand. |
-| `overLight` | `boolean` | `false` | Hint that the glass sits over a light background; tunes tint/contrast. |
+| `overLight` | `boolean` | `false` | Hint that the glass sits over a light background; tunes tint/contrast. The manual override — always wins over `adaptiveTint`. |
+| `adaptiveTint` | `boolean` | `false` | Opt into content-adaptive auto-tint: samples the backdrop and auto-shifts light/dark for legibility (see [Content-adaptive auto-tint](#content-adaptive-auto-tint-adaptivetint)). |
 | `mode` | `DisplacementMode` | `'standard'` | Displacement algorithm (see [Displacement `mode`](#displacement-mode)). |
 | `className` | `string` | — | Class name(s) on the outermost glass element. |
 | `style` | `CSSProperties` | — | Inline styles merged onto the outermost element. |

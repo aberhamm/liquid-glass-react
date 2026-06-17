@@ -37,11 +37,21 @@
  * attached, so there is never a guessed/stale/zero-dimension map.
  */
 
-import { type CSSProperties, type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import {
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from 'react';
+import type { BackdropScheme } from './backdrop-luminance';
 import { type MapMode, getDisplacementMap } from './displacement';
 import { getGlassEdgeShadow } from './glass-edge';
 import { calculateDirectionalScale, calculateElasticTranslation } from './motion';
 import type { DisplacementMode, LiquidGlassProps } from './types';
+import { useBackdropLuminance } from './use-backdrop-luminance';
 import { useGlassCapabilities } from './use-glass-capabilities';
 import { useMousePosition } from './use-mouse-position';
 import { usePrefersContrast } from './use-prefers-contrast';
@@ -59,7 +69,6 @@ const DEFAULTS = {
   aberrationIntensity: 2,
   cornerRadius: 999 as number | string,
   mode: 'standard' as DisplacementMode,
-  overLight: false,
   padding: '24px 32px' as number | string,
   elasticity: 0.15,
 } as const;
@@ -182,6 +191,19 @@ const CONTRAST_FILL = {
  * contrast, so it is overridden — never raised.
  */
 const CONTRAST_SATURATION = 100;
+
+/**
+ * Content-adaptive foreground ink (plan 018). When `adaptiveTint` is on, the
+ * content layer's `color` flips with the verdict so small content (button
+ * labels, captions) stays legible: DARK ink over a bright/light backdrop, LIGHT
+ * ink over a dark backdrop. `color` is inheritable, so children that don't set
+ * their own color pick it up; children with an explicit color keep it. Best-
+ * effort legibility — see the `adaptiveTint` TSDoc limitation note.
+ */
+const CONTENT_INK = {
+  light: 'rgba(255, 255, 255, 0.96)',
+  dark: 'rgba(17, 17, 20, 0.96)',
+} as const;
 
 function quantize(value: number): number {
   return Math.max(QUANT_GRID, Math.round(value / QUANT_GRID) * QUANT_GRID);
@@ -421,6 +443,47 @@ function GlassFilter({
 }
 
 // ---------------------------------------------------------------------------
+// AdaptiveTintLayer — content-adaptive auto-tint sampler (plan 018)
+// ---------------------------------------------------------------------------
+
+interface AdaptiveTintLayerProps {
+  /** The glass wrapper whose backdrop is sampled. */
+  targetRef: RefObject<HTMLElement | null>;
+  /**
+   * Lift the sampled verdict up to the parent. Called with the sampled `scheme`
+   * (`'light' | 'dark'`) once a real reading lands, or `null` when the backdrop
+   * cannot be sampled (taint / no-canvas / SSR) so the parent falls back.
+   */
+  onScheme: (scheme: BackdropScheme | null) => void;
+}
+
+/**
+ * Mounted ONLY when `adaptiveTint` is enabled. It is the sole caller of
+ * {@link useBackdropLuminance}, so the default (`adaptiveTint={false}`) render
+ * path never runs sampling and the sampling module stays tree-shakeable for
+ * consumers that don't opt in — and the hook is never called conditionally
+ * (rules-of-hooks): this component either renders (and always calls the hook) or
+ * is not mounted at all.
+ *
+ * It renders nothing; it only reports the sampled `scheme` up via `onScheme` in a
+ * post-mount effect. Sampling stays out of render, so the parent's first paint
+ * uses the conservative default treatment and hydration matches.
+ */
+function AdaptiveTintLayer({ targetRef, onScheme }: AdaptiveTintLayerProps): ReactNode {
+  const { sampled, scheme } = useBackdropLuminance(targetRef);
+
+  // Report the verdict after mount/whenever it changes. When `sampled` is false
+  // (taint / no-canvas / SSR) report `null` so the parent falls back to
+  // `overLight ?? false` — no error, no flicker loop (the hook only re-renders on
+  // a changed verdict, and we forward exactly that change).
+  useEffect(() => {
+    onScheme(sampled ? scheme : null);
+  }, [sampled, scheme, onScheme]);
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // <LiquidGlass>
 // ---------------------------------------------------------------------------
 
@@ -462,7 +525,8 @@ export function LiquidGlass({
   elasticity = DEFAULTS.elasticity,
   cornerRadius = DEFAULTS.cornerRadius,
   padding = DEFAULTS.padding,
-  overLight = DEFAULTS.overLight,
+  overLight,
+  adaptiveTint = false,
   mode = DEFAULTS.mode,
   className,
   style,
@@ -480,6 +544,14 @@ export function LiquidGlass({
   const prefersDark = usePrefersDark();
   const [hovered, setHovered] = useState<boolean>(false);
   const [pressed, setPressed] = useState<boolean>(false);
+
+  // Content-adaptive auto-tint (plan 018). The sampled backdrop scheme is lifted
+  // here from <AdaptiveTintLayer> (mounted only when `adaptiveTint` is on, so the
+  // default path never samples). `null` means "no usable reading yet" — SSR /
+  // first paint / taint / no-canvas — and the precedence rule falls back to
+  // `overLight ?? false`. Sampling happens in an effect post-mount, so the first
+  // render uses the conservative default and hydration matches.
+  const [adaptiveScheme, setAdaptiveScheme] = useState<BackdropScheme | null>(null);
 
   // Pointer tracking: respects mouseContainer / globalMousePos / mouseOffset,
   // consumes reduced-motion + touch internally, SSR-safe. The wrapper element is
@@ -548,9 +620,19 @@ export function LiquidGlass({
     };
   }, []);
 
+  // Content-adaptive auto-tint precedence (plan 018). An EXPLICIT `overLight`
+  // prop ALWAYS wins (the manual override); `adaptiveTint` only drives the
+  // light/dark treatment when `overLight` is left undefined AND a backdrop scheme
+  // was sampled. When unsampled (`adaptiveScheme === null`) this falls back to
+  // `false` (the default treatment), matching SSR / first paint so hydration
+  // never mismatches. This computes an effective `overLight`-EQUIVALENT and feeds
+  // the SAME existing tint/scale/blur plumbing below — no parallel tint system.
+  const effectiveOverLight =
+    overLight ?? (adaptiveTint && adaptiveScheme ? adaptiveScheme === 'light' : false);
+
   // overLight halves the effective displacement (parity spec) and the GlassFilter
   // / backdrop blur are adjusted for it.
-  const effectiveScale = overLight ? displacementScale / 2 : displacementScale;
+  const effectiveScale = effectiveOverLight ? displacementScale / 2 : displacementScale;
 
   // Increased contrast (plan 014) tones down decoration that competes with
   // foreground legibility: the backdrop saturation boost is pinned to 100% and
@@ -579,7 +661,7 @@ export function LiquidGlass({
   //     content stays legible (no transparent unreadable box); still rim + bevel
   //     + motion for polish.
   const backdropFilter = supportsBackdropFilter
-    ? composeBackdropFilter(blurAmount, effectiveSaturation, overLight, filterUrl)
+    ? composeBackdropFilter(blurAmount, effectiveSaturation, effectiveOverLight, filterUrl)
     : undefined;
 
   const radius = toCssLength(cornerRadius);
@@ -797,9 +879,33 @@ export function LiquidGlass({
     pointerEvents: 'none',
   };
 
+  // Content-adaptive foreground (plan 018). When `adaptiveTint` is on, flip the
+  // content foreground light↔dark with the treatment so small content (e.g.
+  // button labels) stays discernible: a light backdrop (`effectiveOverLight`)
+  // gets DARK ink, a dark backdrop gets LIGHT ink. Exposed as `color` (children
+  // inherit) so it's best-effort legibility without overriding an explicit color
+  // children set on themselves. When `adaptiveTint` is OFF this is undefined, so
+  // the default render is byte-for-byte unchanged.
+  //
+  // Under increased contrast (014) CONTRAST WINS: the foreground is derived from
+  // the opaque contrast fill's scheme (the OS color scheme) so the text contrasts
+  // against THAT surface — auto-tint never undercuts the high-contrast treatment.
+  let adaptiveContentColor: string | undefined;
+  if (adaptiveTint && prefersContrast) {
+    // Contrast wins: ink contrasts against the opaque contrast fill (OS scheme).
+    // A light fill (light OS scheme) ⇒ DARK ink; a dark fill ⇒ LIGHT ink.
+    adaptiveContentColor = scheme === 'light' ? CONTENT_INK.dark : CONTENT_INK.light;
+  } else if (adaptiveTint && adaptiveScheme) {
+    // Auto path: a LIGHT backdrop (effectiveOverLight) gets DARK ink, a DARK
+    // backdrop gets LIGHT ink. Only set when a usable verdict was sampled — when
+    // unsampled (taint / no-canvas / SSR) leave `color` unset so we fall back.
+    adaptiveContentColor = effectiveOverLight ? CONTENT_INK.dark : CONTENT_INK.light;
+  }
+
   const contentStyle: CSSProperties = {
     position: 'relative',
     zIndex: 1,
+    ...(adaptiveContentColor ? { color: adaptiveContentColor } : {}),
   };
 
   return (
@@ -847,6 +953,15 @@ export function LiquidGlass({
       <span data-lg-highlight="" style={highlightStyle} aria-hidden="true" />
       <span data-lg-press-glow="" style={pressGlowStyle} aria-hidden="true" />
       <span data-lg-border="" style={borderStyle} aria-hidden="true" />
+
+      {/* Content-adaptive auto-tint sampler (plan 018): renders nothing, mounted
+          ONLY when `adaptiveTint` is enabled so the default path never samples
+          and the hook is never called conditionally. It samples the backdrop in
+          a post-mount effect and lifts the scheme up via setAdaptiveScheme (a
+          stable setter), driving `effectiveOverLight` above. */}
+      {adaptiveTint ? (
+        <AdaptiveTintLayer targetRef={wrapperRef} onScheme={setAdaptiveScheme} />
+      ) : null}
 
       {/* Content layer: sibling of the surface, above it, unfiltered. */}
       <div data-lg-content="" style={contentStyle}>

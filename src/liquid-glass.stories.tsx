@@ -788,6 +788,127 @@ const SPECULAR_CSS = `
 `;
 
 /**
+ * Content-adaptive auto-tint (plan 018): the HEADLINE feature. The stage is split
+ * into a BRIGHT half and a DARK half (the same-origin demo photo on the dark
+ * side, a near-white wash on the light side). Two identical `<LiquidGlass>`
+ * cards — both with `adaptiveTint`, neither with an explicit `overLight` — sit
+ * one over each region. Each samples the luminance behind it and automatically
+ * shifts toward the light or dark treatment so its label stays legible WITHOUT
+ * hand-setting `overLight`: the card over the bright region picks DARK ink and a
+ * lighter tint, the card over the dark region picks LIGHT ink. A third card sets
+ * an explicit `overLight` to demonstrate the precedence rule (manual wins).
+ *
+ * Same-origin backdrop ⇒ canvas sampling never taints. Over an unknown / cross-
+ * origin backdrop the reading is `sampled: false` and the glass silently falls
+ * back to the default `overLight ?? false` treatment (no error, no flicker).
+ */
+export const AdaptiveTint: Story = {
+  args: { children: null },
+  parameters: {
+    layout: 'fullscreen',
+    noBackdrop: true,
+    docs: {
+      description: {
+        story:
+          'Opt-in `adaptiveTint`: glass that samples the brightness behind it and ' +
+          'auto-shifts toward a light or dark treatment so its label stays ' +
+          'legible over both a bright and a dark region — no manual `overLight`. ' +
+          'An explicit `overLight` always wins (precedence). Best-effort ' +
+          'legibility; verify critical text over unknown / cross-origin backdrops.',
+      },
+    },
+  },
+  render: () => (
+    <div className="lg-adaptive">
+      <style>{ADAPTIVE_CSS}</style>
+      <div className="lg-adaptive__bright" />
+      <div className="lg-adaptive__dark" />
+
+      <div className="lg-adaptive__row">
+        <LiquidGlass adaptiveTint cornerRadius={20} padding="22px 26px" displacementScale={70}>
+          <div style={{ maxWidth: '15rem' }}>
+            <p className="lg-adaptive__eyebrow">Over bright</p>
+            <strong style={{ fontSize: '1.1rem' }}>Auto dark ink</strong>
+            <p className="lg-adaptive__body">
+              Sampled a light backdrop, so the label flips to dark for legibility.
+            </p>
+          </div>
+        </LiquidGlass>
+
+        <LiquidGlass adaptiveTint cornerRadius={20} padding="22px 26px" displacementScale={70}>
+          <div style={{ maxWidth: '15rem' }}>
+            <p className="lg-adaptive__eyebrow">Over dark</p>
+            <strong style={{ fontSize: '1.1rem' }}>Auto light ink</strong>
+            <p className="lg-adaptive__body">
+              Sampled a dark backdrop, so the label stays light. Same component, no
+              <code> overLight</code>.
+            </p>
+          </div>
+        </LiquidGlass>
+      </div>
+
+      <div className="lg-adaptive__row">
+        <LiquidGlass adaptiveTint overLight cornerRadius={999} padding="14px 28px">
+          <span style={{ fontWeight: 600, color: 'rgba(17,17,20,0.96)' }}>
+            Explicit overLight wins
+          </span>
+        </LiquidGlass>
+      </div>
+    </div>
+  ),
+};
+
+const ADAPTIVE_CSS = `
+.lg-adaptive {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  padding: 4rem 1.5rem;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #0c1024;
+}
+/* Bright half (left): a SOLID near-white background so the default canvas-free
+   DOM-background sampler (plan 017) reads it as a LIGHT scheme. */
+.lg-adaptive__bright {
+  position: absolute;
+  inset: 0 50% 0 0;
+  background-color: #f2f5fb;
+}
+/* Dark half (right): the rich same-origin demo photo (dark, busy). */
+.lg-adaptive__dark {
+  position: absolute;
+  inset: 0 0 0 50%;
+  background: center / cover no-repeat url("${DEMO_PHOTO_URL}");
+}
+.lg-adaptive__row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 6rem;
+  align-items: center;
+}
+.lg-adaptive__eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+.lg-adaptive__body {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  opacity: 0.92;
+}
+`;
+
+/**
  * Cross-browser explainer. Mirrors `docs/PARITY.md`: Chromium gets full
  * refraction; Firefox and Safari/WebKit fall back to a frosted (non-refractive)
  * surface with identical geometry; engines without `backdrop-filter` get a solid

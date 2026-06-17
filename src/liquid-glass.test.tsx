@@ -9,6 +9,29 @@ vi.mock('./use-glass-capabilities', () => ({
   useGlassCapabilities: () => mockCapabilities(),
 }));
 
+// Mock the backdrop-luminance hook (plan 017) so the adaptive-tint tests (plan
+// 018) control the sampled verdict deterministically in jsdom — no canvas / DOM
+// walk runs. Defaults to UNSAMPLED so tests that don't opt into a verdict
+// exercise the graceful-degradation fallback path; the hydration/SSR test
+// confirms the first paint uses the conservative default regardless.
+const mockLuminance = vi.fn();
+vi.mock('./use-backdrop-luminance', () => ({
+  useBackdropLuminance: () => mockLuminance(),
+}));
+
+/** Set the mocked backdrop-luminance reading. `null` scheme ⇒ unsampled. */
+function setLuminance(scheme: 'light' | 'dark' | null): void {
+  if (scheme === null) {
+    mockLuminance.mockReturnValue({ luminance: null, scheme: null, sampled: false });
+  } else {
+    mockLuminance.mockReturnValue({
+      luminance: scheme === 'light' ? 0.85 : 0.12,
+      scheme,
+      sampled: true,
+    });
+  }
+}
+
 // The real conservative snapshot used for the SSR/first-paint render — imported
 // (not mocked) so the hydration test diffs the EXACT markup the server produces.
 import { getConservativeGlassCapabilities } from './capabilities';
@@ -91,6 +114,7 @@ function installMatchMedia(
 
 beforeEach(() => {
   mockCapabilities.mockReturnValue(caps(true));
+  setLuminance(null);
   stubLayout();
   installMatchMedia();
   Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, configurable: true });
@@ -1249,6 +1273,185 @@ describe('SSR safety — renderToString → hydrateRoot (plan 006)', () => {
     // 3. Assert React never logged a hydration mismatch. Inspect every call's
     //    args for the known mismatch signatures rather than just call count, so a
     //    benign unrelated error wouldn't mask a real mismatch (and vice versa).
+    const mismatch = errorSpy.mock.calls.some((args) =>
+      args.some(
+        (a) =>
+          typeof a === 'string' &&
+          (/hydrat/i.test(a) ||
+            /did not match/i.test(a) ||
+            /Text content does not match/i.test(a) ||
+            /Warning: Text content/i.test(a) ||
+            /server (HTML|rendered)/i.test(a)),
+      ),
+    );
+    expect(mismatch).toBe(false);
+
+    await act(async () => {
+      root?.unmount();
+    });
+    document.body.removeChild(container);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Plan 018 — content-adaptive auto-tint (adaptiveTint).
+// ---------------------------------------------------------------------------
+
+describe('adaptiveTint: content-adaptive auto light/dark (plan 018)', () => {
+  /** Read the content layer (carries the adaptive foreground color). */
+  function getContent(container: HTMLElement): HTMLElement {
+    const el = container.querySelector<HTMLElement>('[data-lg-content]');
+    if (!el) throw new Error('content element not found');
+    return el;
+  }
+
+  it('is OFF by default: never samples and renders byte-for-byte unchanged', () => {
+    setLuminance('light'); // even with a reading available, default-off ignores it
+    const { container } = render(
+      <LiquidGlass saturation={200}>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    // The hook is never invoked on the default path (AdaptiveTintLayer unmounted).
+    expect(mockLuminance).not.toHaveBeenCalled();
+    const surface = getSurface(container);
+    // Default (overLight-off) treatment: blur not bumped, full saturation honored.
+    expect(styleOf(surface, 'backdropFilter')).toMatch(/blur\(1px\)/);
+    expect(styleOf(surface, 'backdropFilter')).toMatch(/saturate\(200%\)/);
+    // No adaptive foreground color set on the content layer.
+    expect(getContent(container).style.color).toBe('');
+  });
+
+  it('maps a LIGHT backdrop to the light treatment (overLight-equivalent)', () => {
+    setLuminance('light');
+    const { container } = render(
+      <LiquidGlass adaptiveTint>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    // overLight-equivalent bumps the backdrop blur 1px → 1.5px.
+    expect(styleOf(surface, 'backdropFilter')).toMatch(/blur\(1\.5px\)/);
+    // Content ink flips DARK over a light backdrop for legibility.
+    expect(getContent(container).style.color).toMatch(/17, 17, 20/);
+  });
+
+  it('maps a DARK backdrop to the default (non-overLight) treatment', () => {
+    setLuminance('dark');
+    const { container } = render(
+      <LiquidGlass adaptiveTint>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    // Dark backdrop ⇒ effectiveOverLight false ⇒ blur stays at the 1px default.
+    expect(styleOf(surface, 'backdropFilter')).toMatch(/blur\(1px\)/);
+    // Content ink flips LIGHT over a dark backdrop.
+    expect(getContent(container).style.color).toMatch(/255, 255, 255/);
+  });
+
+  it('PRECEDENCE: an explicit overLight ALWAYS wins over adaptiveTint', () => {
+    // Backdrop samples DARK, but the author explicitly set overLight — manual wins.
+    setLuminance('dark');
+    const { container } = render(
+      <LiquidGlass adaptiveTint overLight>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    // overLight=true ⇒ light treatment despite the dark sample.
+    expect(styleOf(getSurface(container), 'backdropFilter')).toMatch(/blur\(1\.5px\)/);
+  });
+
+  it('PRECEDENCE: explicit overLight={false} also wins (auto cannot flip it on)', () => {
+    setLuminance('light');
+    const { container } = render(
+      <LiquidGlass adaptiveTint overLight={false}>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    // overLight=false short-circuits ⇒ default treatment despite the light sample.
+    expect(styleOf(getSurface(container), 'backdropFilter')).toMatch(/blur\(1px\)/);
+  });
+
+  it('GRACEFUL DEGRADATION: sampled:false falls back to the default treatment', () => {
+    setLuminance(null); // unsampled (taint / no-canvas / SSR)
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { container } = render(
+      <LiquidGlass adaptiveTint>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    // Falls back to overLight ?? false ⇒ default blur, no adaptive ink.
+    expect(styleOf(surface, 'backdropFilter')).toMatch(/blur\(1px\)/);
+    expect(getContent(container).style.color).toBe('');
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it('PREFERS-CONTRAST wins: auto-tint never undercuts the high-contrast treatment', () => {
+    // Light backdrop would normally pick dark ink; but contrast forces the
+    // treatment derived from the OS scheme (light here ⇒ dark ink against the
+    // light contrast fill) AND keeps the solid contrast border + opaque fill.
+    setLuminance('light');
+    installMatchMedia({ contrastMore: true });
+    const { container } = render(
+      <LiquidGlass adaptiveTint>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    // The increased-contrast treatment is intact (solid border + opaque fill).
+    expect(surface.style.boxShadow).toMatch(/^inset 0(px)? 0(px)? 0(px)? 2px/);
+    expect(styleOf(surface, 'background')).toMatch(/rgba\(/);
+    // Saturation still pinned to 100 (contrast), not the decorative boost.
+    expect(styleOf(surface, 'backdropFilter')).toMatch(/saturate\(100%\)/);
+  });
+
+  it('renders without console.error / console.warn under adaptiveTint (light + dark)', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    for (const verdict of ['light', 'dark', null] as const) {
+      setLuminance(verdict);
+      const { unmount } = render(
+        <LiquidGlass adaptiveTint>
+          <span>hi</span>
+        </LiquidGlass>,
+      );
+      unmount();
+    }
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('SSR safety — renderToString → hydrateRoot with adaptiveTint, no mismatch', async () => {
+    // Conservative caps model the server + first-paint markup React diffs.
+    mockCapabilities.mockReturnValue(getConservativeGlassCapabilities());
+    // Even if the mocked hook reports a verdict, sampling is deferred to a
+    // post-mount effect, so server + first client paint use the conservative
+    // default treatment and hydration must NOT mismatch.
+    setLuminance('light');
+
+    const element = (
+      <LiquidGlass adaptiveTint>
+        <button type="button">Buy</button>
+      </LiquidGlass>
+    );
+
+    const html = renderToString(element);
+    expect(html).toContain('Buy');
+
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    document.body.appendChild(container);
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    let root: ReturnType<typeof hydrateRoot> | undefined;
+    await act(async () => {
+      root = hydrateRoot(container, element);
+      await Promise.resolve();
+    });
+
     const mismatch = errorSpy.mock.calls.some((args) =>
       args.some(
         (a) =>

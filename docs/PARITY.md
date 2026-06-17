@@ -21,7 +21,8 @@ are the contract documented in `src/types.ts`.
 | `elasticity`          | `number`                                        | `0.15`        | `elasticity`        | Pointer-follow softness. |
 | `cornerRadius`        | `number \| string`                              | `999`         | `cornerRadius`      | Number = px; string = CSS length. |
 | `padding`             | `number \| string`                              | `'24px'`      | `padding`           | Number = px; string = CSS shorthand. |
-| `overLight`           | `boolean`                                       | `false`       | `overLight`         | Tunes tint for light backgrounds. |
+| `overLight`           | `boolean`                                       | `false`       | `overLight`         | Tunes tint for light backgrounds; manual override (wins over `adaptiveTint`). |
+| `adaptiveTint`        | `boolean`                                       | `false`       | — (new, plan 018)   | Auto light/dark tint sampled from the backdrop (see Content-adaptive auto-tint). |
 | `mode`                | `DisplacementMode`                              | `'standard'`  | `mode`              | `standard \| polar \| prominent \| shader \| turbulence`. |
 | `className`           | `string`                                        | —             | `className`         | Applied to the outer element. |
 | `style`               | `CSSProperties`                                 | —             | `style`             | Merged onto the outer element. |
@@ -136,6 +137,32 @@ and focus rings to fully opaque under `@media (prefers-contrast: more)` so the
 focus ring stays clearly delineated on the higher-contrast surface. Content stays
 legible in all combinations (including with reduced-transparency also active), and
 no path emits `console.error` / `console.warn`.
+
+## Content-adaptive auto-tint (plan 018)
+
+Apple's Liquid Glass adapts its tint and content treatment to the brightness of
+what's behind it — the core behavior absent from every other React port. The
+opt-in `adaptiveTint` prop brings it to `<LiquidGlass>`: when `true` it consumes
+the plan-017 luminance sampler (`useBackdropLuminance`), reads the coarse
+`scheme` (`'light' | 'dark'`) of the backdrop, and maps it to an effective
+`overLight`-equivalent that feeds the **existing** tint / displacement / blur
+plumbing. It is **not a second tint system** — it reuses the `overLight` path so
+behavior is consistent and DRY. The content foreground (e.g. button labels) flips
+light↔dark with the verdict so small content stays discernible.
+
+It is **additive and opt-in**: `adaptiveTint` defaults to `false`, so default
+rendering is byte-for-byte unchanged and the sampler is never imported on the
+default path (the hook lives inside an internal `<AdaptiveTintLayer>` mounted only
+when `adaptiveTint` is on, so the default path runs no sampling and the rules of
+hooks are respected — the hook is never called conditionally).
+
+| Aspect | Behavior |
+| ------ | -------- |
+| **Precedence** | An explicit `overLight` ALWAYS wins. `adaptiveTint` only drives light/dark when `overLight` is unset: `overLight ?? (adaptiveTint && scheme ? scheme === 'light' : false)`. The manual override and the auto path never fight. |
+| **SSR / hydration** | Server + first client paint render the default (unsampled) treatment; the sampled treatment is applied in a post-mount effect, so hydration never mismatches (covered by a `renderToString` → `hydrateRoot` test). |
+| **Graceful degradation** | When the backdrop can't be sampled (cross-origin taint, no canvas, SSR) the reading is `sampled: false` and auto-tint falls back to `overLight ?? false` — no error, no flicker loop, no `console.error`. |
+| **prefers-contrast (014)** | Increased contrast WINS on legibility: auto-tint never undercuts the high-contrast surface/border/ink treatment. |
+| **Limitation** | Best-effort legibility. Critical text over unknown / cross-origin backdrops (unsampleable) should be verified manually. |
 
 ## Capability detection
 

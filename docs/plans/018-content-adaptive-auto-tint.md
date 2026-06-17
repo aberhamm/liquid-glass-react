@@ -1,13 +1,16 @@
 ---
 id: 018
 title: Content-adaptive auto-tint (adaptiveTint, auto light/dark)
-status: in-progress
+status: done
 blocked-by: [014, 017]
 priority:
 goal: apple-tier-liquid-glass-enhancements
 allows-migrations: false
 needs-review: none
 created: 2026-06-16
+completed: 2026-06-17
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -123,3 +126,37 @@ Checks:
 - [assert] `grep -qi "adaptiveTint\|adaptive tint" README.md && echo found` outputs `found`
 - [browse] start `pnpm storybook`, open the AdaptiveTint story, and confirm the glass label stays legible as it sits over bright vs dark regions of the backdrop; no console errors; stop the server
 - [manual] Explicit `overLight` still overrides auto-tint; cross-origin backdrop degrades silently.
+
+## Implementation Notes
+
+`adaptiveTint` (default `false`) reuses the existing `overLight` plumbing rather
+than building a parallel tint system: an internal `<AdaptiveTintLayer>` — mounted
+only when the prop is on — is the sole caller of `useBackdropLuminance` (017),
+lifting the sampled `scheme` to the parent, which computes
+`effectiveOverLight = overLight ?? (adaptiveTint && scheme ? scheme === 'light' : false)`
+and feeds the SAME `effectiveScale`/blur/tint path plus a content-foreground ink
+flip for legibility. Precedence: an explicit `overLight` (true or false) always
+short-circuits the auto path. The default path stays lean and rules-of-hooks-safe
+because the hook lives inside the conditionally-mounted subcomponent (never a
+conditional hook call). SSR/hydration-safe — `adaptiveScheme` starts null and
+sampling runs in a post-mount effect, so server + first client paint match
+(renderToString→hydrateRoot test passes); `sampled:false` falls back to
+`overLight ?? false` with no error/flicker; `prefers-contrast` (014) wins on
+legibility. The default Showcase pixel baseline passes UNCHANGED (not
+regenerated). `[browse]` ran: the over-bright card shows dark ink, the over-dark
+card light ink, zero console errors.
+
+**Deviation:** the AdaptiveTint story's bright region uses a solid
+`background-color` (not a gradient) so the canvas-free DOM-walk sampler from 017
+resolves it as light — faithful to the 017 contract, not a feature change.
+
+**Files changed:**
+
+- `src/types.ts` (modified)
+- `src/liquid-glass.tsx` (modified — adds inline `AdaptiveTintLayer`)
+- `src/liquid-glass.test.tsx` (modified)
+- `src/liquid-glass.stories.tsx` (modified — `AdaptiveTint` story)
+- `README.md` (modified)
+- `docs/PARITY.md` (modified)
+
+**Commit:** `24f7755` — `feat(liquid-glass): content-adaptive auto-tint (adaptiveTint)`

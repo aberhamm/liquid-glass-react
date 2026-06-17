@@ -167,9 +167,57 @@ export interface LiquidGlassProps {
    * Hint that the glass sits over a light background, so it tunes its tint and
    * contrast for legibility.
    *
+   * This is the MANUAL override. When set explicitly it ALWAYS wins over
+   * {@link adaptiveTint} (see that prop's precedence note) — the two never fight.
+   *
    * @defaultValue `false`
    */
   overLight?: boolean;
+
+  /**
+   * Opt into CONTENT-ADAPTIVE auto-tint (plan 018). When `true`, the glass
+   * samples the luminance of the backdrop behind it (via the plan-017 sampler)
+   * and automatically shifts toward a light or dark treatment — the SAME tint /
+   * displacement / blur plumbing {@link overLight} already drives — so foreground
+   * content stays legible without hand-tuning `overLight`. A bright backdrop
+   * yields the light treatment (`overLight`-equivalent), a dark backdrop the
+   * default treatment.
+   *
+   * ## Precedence (documented rule)
+   *
+   * An EXPLICIT {@link overLight} always wins. `adaptiveTint` only drives the
+   * light/dark treatment when `overLight` is left unset/undefined:
+   *
+   * ```ts
+   * effectiveOverLight = overLight ?? (adaptiveTint && scheme ? scheme === 'light' : false)
+   * ```
+   *
+   * ## SSR / hydration
+   *
+   * The server and the first client paint render the default (unsampled,
+   * conservative) treatment, so hydration never mismatches. The sampled treatment
+   * is applied in an effect after mount.
+   *
+   * ## Graceful degradation
+   *
+   * When the backdrop cannot be sampled (cross-origin-tainted canvas, no canvas,
+   * SSR) the reading is `sampled: false` and auto-tint falls back to
+   * `overLight ?? false` with no error, no flicker loop, and no `console.error`.
+   *
+   * ## Accessibility interaction
+   *
+   * Under `(prefers-contrast: more)` (plan 014) the high-contrast treatment wins:
+   * auto-tint never undercuts the increased-contrast surface/legibility treatment.
+   *
+   * ## Limitation
+   *
+   * Auto-tint is BEST-EFFORT legibility. Critical text over unknown or
+   * cross-origin backdrops (which cannot be sampled) should be verified manually —
+   * the auto path silently falls back rather than guessing.
+   *
+   * @defaultValue `false`
+   */
+  adaptiveTint?: boolean;
 
   /**
    * Which displacement algorithm to use. See {@link DisplacementMode}.
