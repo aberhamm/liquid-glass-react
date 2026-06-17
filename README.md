@@ -280,6 +280,41 @@ legibility treatment.
 
 ---
 
+## Scroll-aware shadow (`scrollAwareShadow`)
+
+Apple's Liquid Glass deepens a pinned bar's drop-shadow as content scrolls
+beneath it — lifting it above the text — and eases it over solid backgrounds.
+`scrollAwareShadow` brings that to `<LiquidGlass>`: when `true` the glass reuses
+the **same** backdrop-luminance sampler as `adaptiveTint` and modulates **only**
+its decoupled drop-shadow — **deeper and darker** over a dark/dense backdrop,
+**shallower and lighter** over a light/solid one.
+
+```tsx
+// The drop-shadow tracks the backdrop as content scrolls beneath the bar.
+<LiquidGlass scrollAwareShadow>
+  <span>Pinned toolbar</span>
+</LiquidGlass>
+```
+
+It is **additive and opt-in**: `scrollAwareShadow` defaults to `false`, so the
+default render is byte-for-byte unchanged and the sampler is never loaded on the
+default path. Only the shadow's **blur / offset / opacity** vary — it stays the
+decoupled sibling behind the clipped surface (never a `box-shadow` on the clipped
+node), so no clipping eats it and no new layer is added.
+
+**SSR / hydration-safe.** The server and the first client paint render the
+conservative static shadow; the modulated shadow is applied in an effect after
+mount, so hydration never mismatches.
+
+**Graceful degradation.** When the backdrop can't be sampled (cross-origin taint,
+no canvas, SSR) the reading is `sampled: false` and the shadow falls back to the
+static one — no error, no flicker loop, no `console.error`.
+
+**Reduced motion.** Under `(prefers-reduced-motion: reduce)` the shadow **snaps**
+between depths instead of animating (the `box-shadow` transition is dropped).
+
+---
+
 ## Material variants: Regular vs Clear (`variant`)
 
 Apple distinguishes two Liquid Glass materials, and `variant` lets you pick one
@@ -346,6 +381,7 @@ prop:
 | `padding` | `number \| string` | `'24px 32px'` | Inner padding. Number = px; string = CSS shorthand. |
 | `overLight` | `boolean` | `false` | Hint that the glass sits over a light background; tunes tint/contrast. The manual override — always wins over `adaptiveTint`. |
 | `adaptiveTint` | `boolean` | `false` | Opt into content-adaptive auto-tint: samples the backdrop and auto-shifts light/dark for legibility (see [Content-adaptive auto-tint](#content-adaptive-auto-tint-adaptivetint)). |
+| `scrollAwareShadow` | `boolean` | `false` | Opt in: the decoupled drop-shadow deepens/darkens over dark/dense backdrops and eases/lightens over light/solid ones, from the same backdrop sampler (see [Scroll-aware shadow](#scroll-aware-shadow-scrollawareshadow)). |
 | `variant` | `'regular' \| 'clear'` | `'regular'` | Material variant. `regular` = today's fully adaptive surface; `clear` is permanently more transparent and non-adaptive (`adaptiveTint` is a no-op) with a dimming scrim (see [Material variants](#material-variants-regular-vs-clear-variant)). |
 | `mode` | `DisplacementMode` | `'standard'` | Displacement algorithm (see [Displacement `mode`](#displacement-mode)). |
 | `className` | `string` | — | Class name(s) on the outermost glass element. |

@@ -608,6 +608,141 @@ export const ScrollUnderGlass: Story = {
 };
 
 /**
+ * Scroll-aware shadow (plan 021): a glass bar pinned over a column that
+ * alternates DARK/dense and LIGHT/solid bands. With opt-in `scrollAwareShadow`,
+ * the glass's decoupled drop-shadow DEEPENS and DARKENS as a dark band scrolls
+ * beneath it (lifting it above the content) and EASES/LIGHTENS over a light band —
+ * the same backdrop-luminance infra (017) that powers `adaptiveTint`, but driving
+ * the shadow's depth instead of the tint. Modulation runs in a post-mount effect
+ * (SSR-safe) and snaps (no animated transition) under prefers-reduced-motion.
+ */
+const SCROLL_SHADOW_CSS = `
+.lg-sas {
+  position: relative;
+  height: 100vh;
+  width: 100%;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+.lg-sas__col {
+  display: flex;
+  flex-direction: column;
+}
+.lg-sas__band {
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+  box-sizing: border-box;
+  font-family: system-ui, sans-serif;
+  text-align: center;
+}
+.lg-sas__band--dark {
+  /* Dark/dense: the busy demo photo at full strength. */
+  background: center / cover no-repeat url("${DEMO_PHOTO_URL}");
+  color: #fff;
+}
+.lg-sas__band--light {
+  /* Light/solid: a near-white flat fill — shadow should ease here. */
+  background: #f4f5f8;
+  color: #1a1d26;
+}
+.lg-sas__band p { max-width: 26rem; margin: 0; font-size: 0.95rem; line-height: 1.6; opacity: 0.92; }
+.lg-sas__bar {
+  position: sticky;
+  top: 1.5rem;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+`;
+
+const SCROLL_SHADOW_BANDS = [
+  {
+    tone: 'dark',
+    d: 'DARK / dense band — the shadow deepens and darkens here, lifting the bar above the busy content.',
+  },
+  {
+    tone: 'light',
+    d: 'LIGHT / solid band — the shadow eases and lightens, sitting closer to a calm surface.',
+  },
+  {
+    tone: 'dark',
+    d: 'Scroll back and forth to watch the drop-shadow depth track the backdrop behind the pinned bar.',
+  },
+  {
+    tone: 'light',
+    d: 'Default-off keeps today’s static shadow byte-for-byte; this story opts in with scrollAwareShadow.',
+  },
+] as const;
+
+const ScrollAwareShadowStory = (): ReactElement => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  return (
+    <div ref={scrollRef} className="lg-sas">
+      <style>{SCROLL_SHADOW_CSS}</style>
+
+      <div className="lg-sas__bar">
+        <LiquidGlass
+          scrollAwareShadow
+          cornerRadius={999}
+          padding="14px 30px"
+          displacementScale={90}
+          aberrationIntensity={3}
+          mouseContainer={scrollRef}
+        >
+          <span
+            style={{
+              color: '#fff',
+              fontWeight: 600,
+              fontSize: '1rem',
+              fontFamily: 'system-ui, sans-serif',
+            }}
+          >
+            Pinned glass — its shadow tracks the backdrop
+          </span>
+        </LiquidGlass>
+      </div>
+
+      <div className="lg-sas__col">
+        {SCROLL_SHADOW_BANDS.map((b, i) => (
+          <section
+            // biome-ignore lint/suspicious/noArrayIndexKey: static, never-reordered demo bands
+            key={i}
+            className={`lg-sas__band lg-sas__band--${b.tone}`}
+          >
+            <p>{b.d}</p>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export const ScrollAwareShadow: Story = {
+  args: { children: null },
+  parameters: {
+    layout: 'fullscreen',
+    noBackdrop: true,
+    docs: {
+      description: {
+        story:
+          'Opt-in `scrollAwareShadow`: a pinned glass bar over alternating ' +
+          'dark/dense and light/solid bands. The decoupled drop-shadow DEEPENS ' +
+          'over dark content and EASES over light — driven by the same ' +
+          'backdrop-luminance sampler as `adaptiveTint`. The shadow stays a ' +
+          'sibling behind the clipped surface (only its blur/offset/opacity ' +
+          'vary), modulation is deferred to a post-mount effect (SSR-safe), and ' +
+          'it snaps without animating under prefers-reduced-motion.',
+      },
+    },
+  },
+  render: () => <ScrollAwareShadowStory />,
+};
+
+/**
  * Cheap vs real: the same photo behind a plain `backdrop-filter: blur` panel
  * (LEFT) and a full `<LiquidGlass>` displacement panel (RIGHT). Side by side,
  * the refraction edge-bending the library adds over a naive blur is obvious.

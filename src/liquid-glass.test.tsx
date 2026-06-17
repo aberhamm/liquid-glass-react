@@ -1677,3 +1677,198 @@ describe('variant: regular vs clear (plan 019)', () => {
     expect(warnSpy).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Plan 021 — scroll-aware shadow (scrollAwareShadow).
+// ---------------------------------------------------------------------------
+
+describe('scrollAwareShadow: backdrop-driven drop-shadow depth (plan 021)', () => {
+  /** Read the decoupled drop-shadow sibling (carries the outer box-shadow). */
+  function getShadow(container: HTMLElement): HTMLElement {
+    const el = container.querySelector<HTMLElement>('[data-lg-shadow]');
+    if (!el) throw new Error('drop-shadow element not found');
+    return el;
+  }
+
+  /** The exact static (baseline) rest-state shadow string the default emits. */
+  const STATIC_REST = '0 8px 24px rgba(0, 0, 0, 0.22), 0 1px 4px rgba(0, 0, 0, 0.14)';
+
+  /** Parse the FIRST shadow layer's offsetY/blur/alpha for comparison. */
+  function firstLayer(boxShadow: string): { y: number; blur: number; alpha: number } {
+    const m = boxShadow.match(/0 ([\d.]+)px ([\d.]+)px rgba\(0, 0, 0, ([\d.]+)\)/);
+    if (!m) throw new Error(`unexpected box-shadow: ${boxShadow}`);
+    return { y: Number(m[1]), blur: Number(m[2]), alpha: Number(m[3]) };
+  }
+
+  it('is OFF by default: never samples and emits the byte-for-byte static shadow', () => {
+    setLuminance('dark'); // a reading is available, but default-off must ignore it
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    // The hook is never invoked on the default path (ShadowLuminanceProbe unmounted).
+    expect(mockLuminance).not.toHaveBeenCalled();
+    const shadow = getShadow(container);
+    // The exact committed-baseline shadow string is unchanged.
+    expect(shadow.style.boxShadow).toBe(STATIC_REST);
+    // The default transition is unchanged (box-shadow still transitions).
+    expect(shadow.style.transition).toBe('box-shadow 200ms ease, transform 120ms ease-out');
+  });
+
+  it('default-off under reduced motion still emits the unchanged static transition', () => {
+    installMatchMedia({ reducedMotion: true });
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const shadow = getShadow(container);
+    // Default path is unchanged even under reduced motion (only the opt-in path
+    // drops the box-shadow transition).
+    expect(shadow.style.boxShadow).toBe(STATIC_REST);
+    expect(shadow.style.transition).toBe('box-shadow 200ms ease, transform 120ms ease-out');
+  });
+
+  it('DEEPENS/DARKENS the shadow over a DARK backdrop', () => {
+    setLuminance('dark');
+    const { container } = render(
+      <LiquidGlass scrollAwareShadow>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const layer = firstLayer(getShadow(container).style.boxShadow);
+    const base = firstLayer(STATIC_REST);
+    // A dark/dense backdrop pushes a deeper, darker shadow (bigger offset/blur,
+    // higher alpha) than the static baseline.
+    expect(layer.y).toBeGreaterThan(base.y);
+    expect(layer.blur).toBeGreaterThan(base.blur);
+    expect(layer.alpha).toBeGreaterThan(base.alpha);
+  });
+
+  it('EASES/LIGHTENS the shadow over a LIGHT backdrop', () => {
+    setLuminance('light');
+    const { container } = render(
+      <LiquidGlass scrollAwareShadow>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const layer = firstLayer(getShadow(container).style.boxShadow);
+    const base = firstLayer(STATIC_REST);
+    // A light/solid backdrop eases the shadow (smaller offset/blur, lower alpha).
+    expect(layer.y).toBeLessThan(base.y);
+    expect(layer.blur).toBeLessThan(base.blur);
+    expect(layer.alpha).toBeLessThan(base.alpha);
+  });
+
+  it('GRACEFUL DEGRADATION: sampled:false falls back to the static shadow, no error', () => {
+    setLuminance(null); // unsampled (taint / no-canvas / SSR)
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { container } = render(
+      <LiquidGlass scrollAwareShadow>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    // Unsampled => the conservative static shadow, byte-for-byte.
+    expect(getShadow(container).style.boxShadow).toBe(STATIC_REST);
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it('keeps the shadow a SIBLING of the clipped surface (never a box-shadow on it)', () => {
+    setLuminance('dark');
+    const { container } = render(
+      <LiquidGlass scrollAwareShadow>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    const shadow = getShadow(container);
+    // The 005 layering invariant: the modulated shadow stays on the decoupled
+    // sibling, not on the overflow:hidden surface.
+    expect(surface.contains(shadow)).toBe(false);
+    expect(shadow.parentElement).toBe(surface.parentElement);
+    expect(shadow.style.boxShadow).not.toMatch(/inset/);
+  });
+
+  it('REDUCED MOTION: the shadow snaps (no box-shadow transition) but still modulates', () => {
+    installMatchMedia({ reducedMotion: true });
+    setLuminance('dark');
+    const { container } = render(
+      <LiquidGlass scrollAwareShadow>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const shadow = getShadow(container);
+    // No box-shadow transition under reduced motion (snap, not animate); the
+    // transform transition stays.
+    expect(shadow.style.transition).toBe('transform 120ms ease-out');
+    expect(shadow.style.transition).not.toMatch(/box-shadow/);
+    // The depth still modulates (static path is not forced under reduced motion).
+    const layer = firstLayer(shadow.style.boxShadow);
+    expect(layer.y).toBeGreaterThan(firstLayer(STATIC_REST).y);
+  });
+
+  it('renders without console.error / console.warn across schemes', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    for (const verdict of ['light', 'dark', null] as const) {
+      setLuminance(verdict);
+      const { unmount } = render(
+        <LiquidGlass scrollAwareShadow>
+          <span>hi</span>
+        </LiquidGlass>,
+      );
+      unmount();
+    }
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('SSR safety — renderToString → hydrateRoot with scrollAwareShadow, no mismatch', async () => {
+    // Conservative caps model the server + first-paint markup React diffs.
+    mockCapabilities.mockReturnValue(getConservativeGlassCapabilities());
+    // Even with a verdict available, sampling is deferred to a post-mount effect,
+    // so server + first client paint use the conservative static shadow and
+    // hydration must NOT mismatch.
+    setLuminance('dark');
+
+    const element = (
+      <LiquidGlass scrollAwareShadow>
+        <button type="button">Buy</button>
+      </LiquidGlass>
+    );
+
+    const html = renderToString(element);
+    expect(html).toContain('Buy');
+
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    document.body.appendChild(container);
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    let root: ReturnType<typeof hydrateRoot> | undefined;
+    await act(async () => {
+      root = hydrateRoot(container, element);
+      await Promise.resolve();
+    });
+
+    const mismatch = errorSpy.mock.calls.some((args) =>
+      args.some(
+        (a) =>
+          typeof a === 'string' &&
+          (/hydrat/i.test(a) ||
+            /did not match/i.test(a) ||
+            /Text content does not match/i.test(a) ||
+            /Warning: Text content/i.test(a) ||
+            /server (HTML|rendered)/i.test(a)),
+      ),
+    );
+    expect(mismatch).toBe(false);
+
+    await act(async () => {
+      root?.unmount();
+    });
+    document.body.removeChild(container);
+  });
+});

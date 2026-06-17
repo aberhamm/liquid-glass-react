@@ -1,13 +1,16 @@
 ---
 id: 021
 title: Scroll-aware shadow (optional polish)
-status: in-progress
+status: done
 blocked-by: [017]
 priority: 90
 goal: apple-tier-liquid-glass-enhancements
 allows-migrations: false
 needs-review: none
 created: 2026-06-16
+completed: 2026-06-18
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -88,3 +91,33 @@ Checks:
 - [cmd] `pnpm build-storybook`
 - [cmd] `pnpm e2e -- refraction` (default-off ⇒ baseline still passes)
 - [manual] With `scrollAwareShadow`, the shadow visibly deepens over dense content and eases over solid areas; default-off is unchanged.
+
+## Implementation Notes
+
+Added opt-in `scrollAwareShadow?: boolean` (default false). When enabled, an
+internal `ShadowLuminanceProbe` (mounted only when the prop is on, mirroring
+018's AdaptiveTintLayer so the default path never samples and the rules of hooks
+are respected) consumes `useBackdropLuminance` and lifts the sampled `scheme` to
+the parent via state. The parent maps that to a single depth multiplier
+(`SCROLL_SHADOW_DEPTH`: dark 1.35 → deeper/darker, light 0.7 → shallower) and
+rebuilds the EXISTING `[data-lg-shadow]` sibling's box-shadow via
+`buildDropShadow` — modulating only blur/offset/opacity, never moving it onto the
+clipped surface (005 layering invariant preserved). At depth 1 (default-off,
+SSR/first-paint, or `sampled:false`) it reproduces the committed baseline shadow
+byte-for-byte, so default rendering and the Showcase pixel baseline are unchanged
+(e2e refraction passes). Modulation is deferred to the probe's post-mount effect
+(SSR-safe, no hydration mismatch); the box-shadow transition is dropped only on
+the opt-in path under reduced motion (snap, not animate); `sampled:false`
+silently falls back. Added a `ScrollAwareShadow` story (alternating dark/light
+bands over the CC0 backdrop), 10 unit tests, and PARITY/README docs. No deviations.
+
+**Files changed:**
+
+- `src/types.ts` (modified)
+- `src/liquid-glass.tsx` (modified — adds `ShadowLuminanceProbe`)
+- `src/liquid-glass.test.tsx` (modified)
+- `src/liquid-glass.stories.tsx` (modified — `ScrollAwareShadow` story)
+- `docs/PARITY.md` (modified)
+- `README.md` (modified)
+
+**Commit:** `b75501e` — `feat(liquid-glass): scroll-aware shadow (scrollAwareShadow)`

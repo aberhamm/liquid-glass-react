@@ -23,6 +23,7 @@ are the contract documented in `src/types.ts`.
 | `padding`             | `number \| string`                              | `'24px'`      | `padding`           | Number = px; string = CSS shorthand. |
 | `overLight`           | `boolean`                                       | `false`       | `overLight`         | Tunes tint for light backgrounds; manual override (wins over `adaptiveTint`). |
 | `adaptiveTint`        | `boolean`                                       | `false`       | — (new, plan 018)   | Auto light/dark tint sampled from the backdrop (see Content-adaptive auto-tint). |
+| `scrollAwareShadow`   | `boolean`                                       | `false`       | — (new, plan 021)   | Opt-in: the decoupled drop-shadow deepens/darkens over dark/dense backdrops and eases/lightens over light/solid ones, sampled from the same backdrop-luminance infra (see Scroll-aware shadow). |
 | `variant`             | `'regular' \| 'clear'`                          | `'regular'`   | — (new, plan 019)   | Material variant. `regular` = current behavior; `clear` is permanently more transparent and non-adaptive (see Material variants). |
 | `mode`                | `DisplacementMode`                              | `'standard'`  | `mode`              | `standard \| polar \| prominent \| shader \| turbulence`. |
 | `className`           | `string`                                        | —             | `className`         | Applied to the outer element. |
@@ -204,6 +205,31 @@ rules**: it is a separate positioned sibling of the content layer (and of the
 never a `box-shadow` on the clipped node — so clipping never eats it. It sits
 above the surface/highlight/border layers but strictly below the content. No path
 emits `console.error` / `console.warn` in either variant.
+
+## Scroll-aware shadow (plan 021)
+
+Apple's Liquid Glass deepens a pinned bar's drop-shadow as content scrolls
+beneath it (lifting it above text) and lightens it over solid backgrounds. The
+opt-in `scrollAwareShadow` prop brings this to `<LiquidGlass>`: when `true` it
+reuses the **same** plan-017 luminance sampler as `adaptiveTint`, reads the coarse
+`scheme`, and modulates **only** the existing decoupled `[data-lg-shadow]`
+sibling's depth — deeper/darker over a dark/dense backdrop, shallower/lighter over
+a light/solid one.
+
+It is **additive and opt-in**: `scrollAwareShadow` defaults to `false`, so default
+rendering is byte-for-byte unchanged (the committed Showcase pixel baseline is
+untouched) and the sampler is never imported on the default path. Like
+`adaptiveTint`, the hook lives inside an internal `<ShadowLuminanceProbe>` mounted
+only when the prop is on, so the default path runs no sampling and the rules of
+hooks are respected (the hook is never called conditionally).
+
+| Aspect | Behavior |
+| ------ | -------- |
+| **What varies** | ONLY the drop-shadow's blur / offset / opacity. The shadow stays a SIBLING behind the `overflow:hidden` surface — never a `box-shadow` on the clipped node (the plan-005 layering invariant); no new layer is added. |
+| **Mapping** | A single depth multiplier per backdrop scheme scales the existing static shadow: dark ⇒ deeper/darker, light ⇒ shallower/lighter. At the unsampled fallback the multiplier is `1`, reproducing the baseline shadow exactly. |
+| **SSR / hydration** | Server + first client paint render the conservative static shadow; the modulated shadow is applied in a post-mount effect, so hydration never mismatches (covered by a `renderToString` → `hydrateRoot` test). |
+| **Graceful degradation** | When the backdrop can't be sampled (cross-origin taint, no canvas, SSR) the reading is `sampled: false` and the shadow falls back to the static one — no error, no flicker loop, no `console.error`. |
+| **prefers-reduced-motion** | The shadow does not animate between depths — it snaps (the `box-shadow` transition is dropped on the opt-in path under reduced motion). |
 
 ## Capability detection
 

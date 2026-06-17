@@ -238,6 +238,45 @@ export interface LiquidGlassProps {
   adaptiveTint?: boolean;
 
   /**
+   * Opt into SCROLL-AWARE SHADOW (plan 021). When `true`, the glass's decoupled
+   * outer drop-shadow (the `[data-lg-shadow]` sibling rendered behind the clipped
+   * surface) modulates its depth/darkness from the backdrop behind the element
+   * (via the plan-017 sampler): it DEEPENS and DARKENS over a dark/dense backdrop
+   * (reinforcing the "floating above content" read as text scrolls beneath) and
+   * EASES/LIGHTENS over a light/solid one. Apple's Liquid Glass does exactly this
+   * as content scrolls under a pinned glass bar.
+   *
+   * ## What it touches
+   *
+   * ONLY the existing drop-shadow sibling's blur/offset/opacity vary. The shadow
+   * stays a SIBLING of the `overflow:hidden` glass surface (never a box-shadow on
+   * the clipped node — the plan-005 layering invariant); no new layer is added.
+   *
+   * ## SSR / hydration
+   *
+   * The server and the first client paint render the conservative static shadow,
+   * so hydration never mismatches. The modulated shadow is applied in an effect
+   * after mount; sampling is throttled by the hook.
+   *
+   * ## Graceful degradation
+   *
+   * When the backdrop cannot be sampled (cross-origin-tainted canvas, no canvas,
+   * SSR) the reading is `sampled: false` and the shadow falls back to the current
+   * static shadow with no error and no flicker loop.
+   *
+   * ## Reduced motion
+   *
+   * Under `(prefers-reduced-motion: reduce)` the shadow does not animate between
+   * depths — it snaps/stays static (no transition).
+   *
+   * This is ADDITIVE and non-breaking: omitting it (default `false`) keeps today's
+   * rendering byte-for-byte and leaves the committed pixel baseline unchanged.
+   *
+   * @defaultValue `false`
+   */
+  scrollAwareShadow?: boolean;
+
+  /**
    * The Liquid Glass material variant. See {@link GlassVariant}.
    *
    * - `'regular'` (default) — EXACTLY the current behavior, including

@@ -206,6 +206,61 @@ const CONTENT_INK = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// Scroll-aware shadow modulation (plan 021)
+// ---------------------------------------------------------------------------
+
+/**
+ * The static drop-shadow (the `static` factor of 1 reproduces today's exact
+ * values) is scaled by a single multiplier per backdrop scheme. The shadow
+ * DEEPENS/DARKENS over a dark backdrop (factor > 1 → larger offset/blur + darker
+ * alpha, lifting the glass above dense scrolling content) and EASES/LIGHTENS over
+ * a light/solid one (factor < 1). Factors are deliberately subtle so the polish
+ * reads as a gentle depth shift, not a jump.
+ *
+ * Keys map directly to {@link BackdropScheme}; `static` is the SSR / first-paint /
+ * unsampled fallback and equals the committed baseline shadow exactly.
+ */
+const SCROLL_SHADOW_DEPTH = {
+  /** Conservative fallback: byte-for-byte the existing static shadow. */
+  static: 1,
+  /** Dark/dense backdrop ⇒ deeper, darker shadow. */
+  dark: 1.35,
+  /** Light/solid backdrop ⇒ shallower, lighter shadow. */
+  light: 0.7,
+} as const;
+
+/** Base outer drop-shadow layers (offsetY, blur, alpha) at rest and on hover. */
+const SHADOW_LAYERS = {
+  rest: [
+    { y: 8, blur: 24, alpha: 0.22 },
+    { y: 1, blur: 4, alpha: 0.14 },
+  ],
+  hover: [
+    { y: 12, blur: 32, alpha: 0.28 },
+    { y: 2, blur: 8, alpha: 0.18 },
+  ],
+} as const;
+
+/**
+ * Build the outer drop-shadow `box-shadow` from the base layers scaled by
+ * `depth`. Offset, blur, and alpha all scale together so the shadow grows
+ * deeper/darker (depth > 1) or eases/lightens (depth < 1). At `depth = 1` this
+ * reproduces the existing static shadow string exactly. Alpha is clamped to a
+ * sane ceiling so a stacked modulation never produces an opaque slab.
+ */
+function buildDropShadow(hovered: boolean, depth: number): string {
+  const layers = hovered ? SHADOW_LAYERS.hover : SHADOW_LAYERS.rest;
+  return layers
+    .map((l) => {
+      const y = Math.round(l.y * depth * 100) / 100;
+      const blur = Math.round(l.blur * depth * 100) / 100;
+      const alpha = Math.round(Math.min(l.alpha * depth, 0.6) * 1000) / 1000;
+      return `0 ${y}px ${blur}px rgba(0, 0, 0, ${alpha})`;
+    })
+    .join(', ');
+}
+
+// ---------------------------------------------------------------------------
 // Material variant resolver (plan 019)
 // ---------------------------------------------------------------------------
 
@@ -525,6 +580,48 @@ function AdaptiveTintLayer({ targetRef, onScheme }: AdaptiveTintLayerProps): Rea
 }
 
 // ---------------------------------------------------------------------------
+// ShadowLuminanceProbe — scroll-aware shadow sampler (plan 021)
+// ---------------------------------------------------------------------------
+
+interface ShadowLuminanceProbeProps {
+  /** The glass wrapper whose backdrop is sampled. */
+  targetRef: RefObject<HTMLElement | null>;
+  /**
+   * Lift the sampled verdict up to the parent. Called with the sampled `scheme`
+   * (`'light' | 'dark'`) once a real reading lands, or `null` when the backdrop
+   * cannot be sampled (taint / no-canvas / SSR) so the parent falls back to the
+   * static shadow.
+   */
+  onScheme: (scheme: BackdropScheme | null) => void;
+}
+
+/**
+ * Mounted ONLY when `scrollAwareShadow` is enabled (mirrors {@link AdaptiveTintLayer}).
+ * It is the sole caller of {@link useBackdropLuminance} on this path, so the
+ * default (`scrollAwareShadow={false}`) render path never samples and the
+ * sampling module stays tree-shakeable — and the hook is never called
+ * conditionally (rules-of-hooks): this component either renders (and always
+ * calls the hook) or is not mounted at all.
+ *
+ * It renders nothing; it only reports the sampled `scheme` up via `onScheme` in a
+ * post-mount effect. Sampling stays out of render, so the parent's first paint
+ * uses the conservative static shadow and hydration matches.
+ */
+function ShadowLuminanceProbe({ targetRef, onScheme }: ShadowLuminanceProbeProps): ReactNode {
+  const { sampled, scheme } = useBackdropLuminance(targetRef);
+
+  // Report the verdict after mount/whenever it changes. When `sampled` is false
+  // (taint / no-canvas / SSR) report `null` so the parent falls back to the
+  // static shadow — no error, no flicker loop (the hook only re-renders on a
+  // changed verdict, and we forward exactly that change).
+  useEffect(() => {
+    onScheme(sampled ? scheme : null);
+  }, [sampled, scheme, onScheme]);
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // <LiquidGlass>
 // ---------------------------------------------------------------------------
 
@@ -568,6 +665,7 @@ export function LiquidGlass({
   padding = DEFAULTS.padding,
   overLight,
   adaptiveTint = false,
+  scrollAwareShadow = false,
   variant = 'regular',
   mode = DEFAULTS.mode,
   className,
@@ -594,6 +692,14 @@ export function LiquidGlass({
   // `overLight ?? false`. Sampling happens in an effect post-mount, so the first
   // render uses the conservative default and hydration matches.
   const [adaptiveScheme, setAdaptiveScheme] = useState<BackdropScheme | null>(null);
+
+  // Scroll-aware shadow (plan 021). The sampled backdrop scheme is lifted here
+  // from <ShadowLuminanceProbe> (mounted only when `scrollAwareShadow` is on, so
+  // the default path never samples). `null` means "no usable reading yet" — SSR /
+  // first paint / taint / no-canvas — and the shadow falls back to the static
+  // depth. Sampling happens in an effect post-mount, so the first render uses the
+  // conservative static shadow and hydration matches.
+  const [shadowScheme, setShadowScheme] = useState<BackdropScheme | null>(null);
 
   // Pointer tracking: respects mouseContainer / globalMousePos / mouseOffset,
   // consumes reduced-motion + touch internally, SSR-safe. The wrapper element is
@@ -810,6 +916,16 @@ export function LiquidGlass({
     ...style,
   };
 
+  // Scroll-aware shadow (plan 021): pick the depth multiplier from the sampled
+  // backdrop scheme lifted by <ShadowLuminanceProbe>. `null` (SSR / first paint /
+  // unsampled / scrollAwareShadow off) ⇒ the `static` factor of 1, so the shadow
+  // is byte-for-byte the committed baseline. Only blur/offset/alpha vary — the
+  // shadow stays the decoupled sibling (the plan-005 layering invariant); no new
+  // layer. When OFF, `shadowScheme` is never set, so this is a pure no-op.
+  const shadowDepth = scrollAwareShadow
+    ? SCROLL_SHADOW_DEPTH[shadowScheme ?? 'static']
+    : SCROLL_SHADOW_DEPTH.static;
+
   // Decoupled outer drop-shadow/glow. SEPARATE sibling rendered BEHIND the
   // clipped surface — a same-node box-shadow would be clipped by the surface's
   // overflow:hidden + backdrop clip. It tracks the elastic translate so the glow
@@ -819,10 +935,17 @@ export function LiquidGlass({
     inset: 0,
     borderRadius: radius,
     transform: surfaceTransform,
-    transition: 'box-shadow 200ms ease, transform 120ms ease-out',
-    boxShadow: hovered
-      ? '0 12px 32px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.18)'
-      : '0 8px 24px rgba(0, 0, 0, 0.22), 0 1px 4px rgba(0, 0, 0, 0.14)',
+    // Scroll-aware + reduced motion: drop the box-shadow transition so the depth
+    // SNAPS between scroll-aware states instead of animating. Only applies on the
+    // opt-in path under reduced motion, so the default render (and the default
+    // reduced-motion render) keeps the existing transition byte-for-byte. The
+    // transform transition always stays (already reduced-motion-neutral via
+    // surfaceTransform).
+    transition:
+      scrollAwareShadow && reducedMotion
+        ? 'transform 120ms ease-out'
+        : 'box-shadow 200ms ease, transform 120ms ease-out',
+    boxShadow: buildDropShadow(hovered, shadowDepth),
     zIndex: -1,
     pointerEvents: 'none',
   };
@@ -1059,6 +1182,16 @@ export function LiquidGlass({
           setAdaptiveScheme (a stable setter), driving `effectiveOverLight` above. */}
       {adaptiveActive ? (
         <AdaptiveTintLayer targetRef={wrapperRef} onScheme={setAdaptiveScheme} />
+      ) : null}
+
+      {/* Scroll-aware shadow sampler (plan 021): renders nothing, mounted ONLY
+          when `scrollAwareShadow` is enabled so the default path never samples
+          and the hook is never called conditionally. It samples the backdrop in
+          a post-mount effect and lifts the scheme up via setShadowScheme (a
+          stable setter), driving `shadowDepth` above — modulating ONLY the
+          existing decoupled drop-shadow sibling's blur/offset/opacity. */}
+      {scrollAwareShadow ? (
+        <ShadowLuminanceProbe targetRef={wrapperRef} onScheme={setShadowScheme} />
       ) : null}
 
       {/* Content layer: sibling of the surface, above it, unfiltered. */}
