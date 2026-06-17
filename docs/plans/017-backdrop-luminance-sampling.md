@@ -1,7 +1,7 @@
 ---
 id: 017
 title: Backdrop-luminance sampling infrastructure (lazy, taint-aware)
-status: pending
+status: in-progress
 blocked-by: []
 priority:
 goal: apple-tier-liquid-glass-enhancements
