@@ -50,6 +50,7 @@ export {
 // Motion + rim-lighting surface (plan 005). Exported for advanced consumers who
 // coordinate motion externally or reuse the bevel.
 export { useReducedMotion } from './use-reduced-motion';
+export { useReducedTransparency } from './use-reduced-transparency';
 export {
   useMousePosition,
   type MouseContainer,

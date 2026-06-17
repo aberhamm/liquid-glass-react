@@ -1,13 +1,16 @@
 ---
 id: 013
 title: Honor prefers-reduced-transparency (frostier, no displacement)
-status: in-progress
+status: done
 blocked-by: []
 priority:
 goal: apple-tier-liquid-glass-enhancements
 allows-migrations: false
 needs-review: none
 created: 2026-06-16
+completed: 2026-06-17
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -120,3 +123,43 @@ Checks:
 - [cmd] `pnpm exec playwright test a11y --project=chromium` (or the refraction spec containing the emulateMedia case)
 - [assert] `grep -qi "reduced-transparency\|reduce transparency" docs/PARITY.md && echo found` outputs `found`
 - [manual] With Reduce Transparency on (macOS System Settings), the Showcase glass renders as static frosted glass (no live refraction), still legible, no console errors.
+
+## Implementation Notes
+
+Added prefers-reduced-transparency support as an additive, orthogonal axis.
+`capabilities.ts` gained an SSR-safe `prefersReducedTransparency` probe + a
+`GlassCapabilities` field; a new `useReducedTransparency()` hook mirrors
+`useReducedMotion` verbatim (matchMedia + `'change'` listener, conservative
+`false` default) and is the authoritative live source. `<LiquidGlass>` consumes
+it: when active it forces `filterActive=false` (reusing the existing no-filter
+path so the SVG `url(#id)` is omitted on every tier with no geometry change) and
+raises the surface fill opacity (~0.75 frosting over retained blur on tiers 1/2,
+~0.92 solid on tier 3). Rim/bevel/elastic-motion layers still render. Unit tests
+cover the hook (mocked matchMedia, change reactivity, SSR default) and the render
+branch (mocked true drops `url(` and adds opaque fill; mocked false byte-for-byte
+unchanged) with a silent `console.error` spy. The committed Showcase pixel
+baseline passes without regeneration.
+
+**Deviation:** Playwright 1.61's `page.emulateMedia()` has no
+`reducedTransparency` option, so `e2e/a11y.spec.ts` drives the media feature over
+CDP (`Emulation.setEmulatedMedia` with `prefers-reduced-transparency`) instead —
+achieving the plan's intent with a working API.
+
+**Files changed:**
+
+- `src/capabilities.ts` (modified)
+- `src/capabilities.test.ts` (modified)
+- `src/types.ts` (modified)
+- `src/liquid-glass.tsx` (modified)
+- `src/liquid-glass.test.tsx` (modified)
+- `src/index.ts` (modified)
+- `src/index.test.ts` (modified)
+- `src/glass-button.test.tsx` (modified)
+- `src/glass-card.test.tsx` (modified)
+- `src/glass-segmented-control.test.tsx` (modified)
+- `docs/PARITY.md` (modified)
+- `src/use-reduced-transparency.ts` (created)
+- `src/use-reduced-transparency.test.ts` (created)
+- `e2e/a11y.spec.ts` (created)
+
+**Commit:** `2eea7b2` — `feat(liquid-glass): honor prefers-reduced-transparency`

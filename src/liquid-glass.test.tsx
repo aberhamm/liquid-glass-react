@@ -32,6 +32,7 @@ function caps(canRefract: boolean, supportsBackdropFilter = canRefract): GlassCa
     supportsSvgBackdropDisplacement: canRefract,
     isFirefox: false,
     prefersReducedMotion: false,
+    prefersReducedTransparency: false,
     canRefract,
   };
 }
@@ -56,15 +57,24 @@ function stubLayout(width = 320, height = 96): void {
 }
 
 /**
- * Install a controllable `matchMedia` so motion-aware hooks (`useReducedMotion`,
- * `usePrefersDark`) resolve deterministically. `reduced` toggles
- * `(prefers-reduced-motion: reduce)`.
+ * Install a controllable `matchMedia` so media-aware hooks (`useReducedMotion`,
+ * `useReducedTransparency`, `usePrefersDark`) resolve deterministically. Each
+ * query is matched by its OWN substring so reduced-motion and
+ * reduced-transparency are independent axes (a single `'reduce'` check would
+ * conflate them — both query strings contain `reduce`).
  */
-function installMatchMedia(reduced: boolean): void {
+function installMatchMedia(
+  opts: { reducedMotion?: boolean; reducedTransparency?: boolean } = {},
+): void {
+  const { reducedMotion = false, reducedTransparency = false } = opts;
   vi.stubGlobal(
     'matchMedia',
     vi.fn((query: string) => ({
-      matches: query.includes('reduce') ? reduced : false,
+      matches: query.includes('prefers-reduced-motion: reduce')
+        ? reducedMotion
+        : query.includes('prefers-reduced-transparency: reduce')
+          ? reducedTransparency
+          : false,
       media: query,
       onchange: null,
       addEventListener: vi.fn(),
@@ -79,7 +89,7 @@ function installMatchMedia(reduced: boolean): void {
 beforeEach(() => {
   mockCapabilities.mockReturnValue(caps(true));
   stubLayout();
-  installMatchMedia(false);
+  installMatchMedia();
   Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, configurable: true });
   // jsdom always defines `ontouchstart` on window (an IDL handler attribute),
   // which would make the touch heuristic ('ontouchstart' in window) falsely true.
@@ -488,7 +498,7 @@ describe('elastic motion + rim lighting (plan 005)', () => {
   });
 
   it('yields a neutral (identity) transform under reduced motion', () => {
-    installMatchMedia(true);
+    installMatchMedia({ reducedMotion: true });
     const { container } = render(
       <LiquidGlass elasticity={1}>
         <span>hi</span>
@@ -640,7 +650,7 @@ describe('graceful degradation — capability matrix (plan 006)', () => {
   });
 
   it('reduced motion yields an identity transform in the fallback tiers too', () => {
-    installMatchMedia(true);
+    installMatchMedia({ reducedMotion: true });
     for (const c of [caps(false, true), caps(false, false)]) {
       mockCapabilities.mockReturnValue(c);
       const { container, unmount } = render(
@@ -656,6 +666,167 @@ describe('graceful degradation — capability matrix (plan 006)', () => {
       expect(surface.style.transform).toContain('scale(1.0000, 1.0000)');
       unmount();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Plan 013 — prefers-reduced-transparency: frostier, no live refraction.
+// ---------------------------------------------------------------------------
+
+describe('prefers-reduced-transparency (plan 013)', () => {
+  /** Read the wrapper element's geometry-defining inline styles. */
+  function geometry(container: HTMLElement): {
+    padding: string;
+    borderRadius: string;
+    display: string;
+  } {
+    const wrapper = container.firstElementChild as HTMLElement;
+    return {
+      padding: wrapper.style.padding,
+      borderRadius: wrapper.style.borderRadius,
+      display: wrapper.style.display,
+    };
+  }
+
+  it('drops the url(#id) refraction on the FULL tier when reduced-transparency is on', () => {
+    // canRefract true (Chromium), but reduced transparency forces the no-filter path.
+    mockCapabilities.mockReturnValue(caps(true));
+    installMatchMedia({ reducedTransparency: true });
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    const bf = styleOf(surface, 'backdropFilter');
+    // No live lensing: the SVG url(#id) is gone and no <filter> is rendered.
+    expect(bf).not.toMatch(/url\(#/);
+    expect(container.querySelector('filter')).toBeNull();
+    expect(container.innerHTML).not.toMatch(/url\(#lg-/);
+    // The frosted blur is retained for the static glass look.
+    expect(bf).toMatch(/blur\(/);
+    expect(bf).toMatch(/saturate\(/);
+  });
+
+  it('applies a more-opaque surface fill on the FULL tier under reduced-transparency', () => {
+    mockCapabilities.mockReturnValue(caps(true));
+    installMatchMedia({ reducedTransparency: true });
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    // A frosting fill is layered over the retained blur (no fill in the default).
+    const bg = styleOf(surface, 'background');
+    expect(bg).toMatch(/rgba\(/);
+    expect(bg).not.toBe('');
+  });
+
+  it('raises the solid fill alpha on the no-backdrop-filter tier under reduced-transparency', () => {
+    mockCapabilities.mockReturnValue(caps(false, false));
+    installMatchMedia({ reducedTransparency: true });
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    const bg = styleOf(surface, 'background');
+    // More opaque than the default 0.55 solid fallback.
+    const alpha = Number(bg.match(/rgba\([^)]*,\s*([\d.]+)\)/)?.[1]);
+    expect(alpha).toBeGreaterThan(0.55);
+  });
+
+  it('drops live refraction on the frosted (Firefox/Safari) tier under reduced-transparency', () => {
+    // Even on a tier that already has no refraction, the path stays consistent.
+    mockCapabilities.mockReturnValue(caps(false, true));
+    installMatchMedia({ reducedTransparency: true });
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    expect(styleOf(surface, 'backdropFilter')).not.toMatch(/url\(#/);
+    expect(container.querySelector('filter')).toBeNull();
+    // Still frosted + more opaque.
+    expect(styleOf(surface, 'background')).toMatch(/rgba\(/);
+  });
+
+  it('renders byte-for-byte identical to today when reduced-transparency is OFF', () => {
+    // Default install (both axes off) must reproduce the existing full-tier output.
+    mockCapabilities.mockReturnValue(caps(true));
+    installMatchMedia();
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    const bf = styleOf(surface, 'backdropFilter');
+    // Refraction present, no extra fill — exactly the TIER 1 invariant.
+    expect(bf).toMatch(/url\(#lg-[^)]+\)/);
+    expect(styleOf(surface, 'background')).toBe('');
+    expect(container.querySelector('filter')).not.toBeNull();
+  });
+
+  it('keeps IDENTICAL box geometry whether reduced-transparency is on or off (no layout shift)', () => {
+    const renderWith = (reducedTransparency: boolean): ReturnType<typeof geometry> => {
+      mockCapabilities.mockReturnValue(caps(true));
+      installMatchMedia({ reducedTransparency });
+      const { container, unmount } = render(
+        <LiquidGlass padding="12px 20px" cornerRadius={28}>
+          <span>hi</span>
+        </LiquidGlass>,
+      );
+      const geo = geometry(container);
+      unmount();
+      return geo;
+    };
+
+    const off = renderWith(false);
+    const on = renderWith(true);
+    expect(off.padding).toBe('12px 20px');
+    expect(off.borderRadius).toBe('28px');
+    expect(on).toEqual(off);
+  });
+
+  it('still renders the inset bevel and rim layers under reduced-transparency', () => {
+    mockCapabilities.mockReturnValue(caps(true));
+    installMatchMedia({ reducedTransparency: true });
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    // Bevel/rim are cross-browser polish, not transparency — they remain.
+    expect(surface.style.boxShadow).toMatch(/inset/);
+    expect(container.querySelector('[data-lg-highlight]')).not.toBeNull();
+    expect(container.querySelector('[data-lg-border]')).not.toBeNull();
+  });
+
+  it('renders without console.error / console.warn under reduced-transparency', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    for (const c of [caps(true), caps(false, true), caps(false, false)]) {
+      mockCapabilities.mockReturnValue(c);
+      installMatchMedia({ reducedTransparency: true });
+      const { unmount } = render(
+        <LiquidGlass mode="standard">
+          <button type="button">Buy</button>
+        </LiquidGlass>,
+      );
+      act(() => {
+        fireEvent.mouseMove(document, { clientX: 200, clientY: 60 });
+      });
+      unmount();
+    }
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 });
 

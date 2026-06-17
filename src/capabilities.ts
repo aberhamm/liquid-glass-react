@@ -17,6 +17,7 @@ const SSR_DEFAULTS: GlassCapabilities = {
   supportsSvgBackdropDisplacement: false,
   isFirefox: false,
   prefersReducedMotion: false,
+  prefersReducedTransparency: false,
   canRefract: false,
 };
 
@@ -75,6 +76,21 @@ function probePrefersReducedMotion(): boolean {
 }
 
 /**
+ * Point-in-time `(prefers-reduced-transparency: reduce)` snapshot. Conservative
+ * `false` when `matchMedia` is unavailable. Browsers that don't understand the
+ * query return an `MediaQueryList` whose `matches` is `false`, so an unsupported
+ * query degrades to "not reduced" — never throws and never wrongly opts in. The
+ * authoritative live source is `useReducedTransparency()`; this snapshot exists
+ * for one-shot detection parity with `prefersReducedMotion`.
+ */
+function probePrefersReducedTransparency(): boolean {
+  if (typeof window.matchMedia !== 'function') {
+    return false;
+  }
+  return window.matchMedia('(prefers-reduced-transparency: reduce)').matches;
+}
+
+/**
  * Detect the current browser's liquid-glass capabilities.
  *
  * Safe to call during SSR: returns conservative all-`false` defaults when
@@ -95,6 +111,7 @@ export function detectGlassCapabilities(): GlassCapabilities {
   // derive it from positive Blink detection. See docs/PARITY.md.
   const supportsSvgBackdropDisplacement = isChromium;
   const prefersReducedMotion = probePrefersReducedMotion();
+  const prefersReducedTransparency = probePrefersReducedTransparency();
 
   // POSITIVE gate, not `!isFirefox`: Safari/WebKit supports backdrop-filter and
   // is not Firefox, but does NOT composite the displacement filter and must
@@ -107,6 +124,7 @@ export function detectGlassCapabilities(): GlassCapabilities {
     supportsSvgBackdropDisplacement,
     isFirefox,
     prefersReducedMotion,
+    prefersReducedTransparency,
     canRefract,
   };
 }

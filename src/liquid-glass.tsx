@@ -45,6 +45,7 @@ import type { DisplacementMode, LiquidGlassProps } from './types';
 import { useGlassCapabilities } from './use-glass-capabilities';
 import { useMousePosition } from './use-mouse-position';
 import { useReducedMotion } from './use-reduced-motion';
+import { useReducedTransparency } from './use-reduced-transparency';
 
 // ---------------------------------------------------------------------------
 // Defaults (parity spec — plan 004)
@@ -77,6 +78,29 @@ const TURBULENCE_BASE_FREQUENCY = 0.015;
  * 16 (1rem) so the default lands at ~1px and larger values scale linearly.
  */
 const BLUR_PX_PER_UNIT = 16;
+
+/**
+ * Scheme-aware translucent fill layered ON TOP of the blurred backdrop when
+ * `prefers-reduced-transparency: reduce` is active and the backdrop tiers (1/2)
+ * still carry a `backdrop-filter`. It frosts the surface toward opaque so the
+ * material reads as static frosted glass rather than live lensing. Higher alpha
+ * than the tier-3 solid fill because here it composites over a blurred backdrop,
+ * not bare content. (a11y plan 013.)
+ */
+const REDUCED_TRANSPARENCY_FILL = {
+  light: 'rgba(255, 255, 255, 0.75)',
+  dark: 'rgba(30, 30, 35, 0.75)',
+} as const;
+
+/**
+ * Scheme-aware solid fill for the no-`backdrop-filter` tier (3) under reduced
+ * transparency: a higher alpha than the default `0.55` solid fallback so the
+ * surface is more opaque / less transparent as the setting requests.
+ */
+const REDUCED_TRANSPARENCY_SOLID_FILL = {
+  light: 'rgba(255, 255, 255, 0.92)',
+  dark: 'rgba(30, 30, 35, 0.92)',
+} as const;
 
 function quantize(value: number): number {
   return Math.max(QUANT_GRID, Math.round(value / QUANT_GRID) * QUANT_GRID);
@@ -356,6 +380,7 @@ export function LiquidGlass({
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [dimensions, setDimensions] = useState<Dimensions | null>(null);
   const reducedMotion = useReducedMotion();
+  const reducedTransparency = useReducedTransparency();
   const prefersDark = usePrefersDark();
   const [hovered, setHovered] = useState<boolean>(false);
   const [pressed, setPressed] = useState<boolean>(false);
@@ -433,7 +458,10 @@ export function LiquidGlass({
 
   const measured = dimensions !== null && dimensions.width > 0 && dimensions.height > 0;
   // Attach the filter only when refraction is supported AND we have real dims.
-  const filterActive = canRefract && measured;
+  // `prefers-reduced-transparency: reduce` is ORTHOGONAL to the 3-tier gate: it
+  // force-drops live lensing on EVERY tier by reusing the existing no-filter path
+  // (no 4th tier, no geometry change), exactly as Firefox/WebKit already do.
+  const filterActive = canRefract && measured && !reducedTransparency;
   const filterUrl = filterActive ? `url(#${filterId})` : null;
 
   // Tiered render selector (plan 006). All tiers share IDENTICAL box geometry
@@ -510,15 +538,25 @@ export function LiquidGlass({
     pointerEvents: 'none',
   };
 
-  // TIER 3 solid translucent fill: used only when backdrop-filter is unsupported.
-  // A semi-opaque scheme-aware background keeps content legible instead of leaving
-  // a transparent box. When backdrop-filter IS supported (tiers 1/2) the blurred
-  // backdrop carries the glass look, so no solid fill is applied.
-  const solidFallbackBackground = supportsBackdropFilter
-    ? undefined
-    : prefersDark
-      ? 'rgba(30, 30, 35, 0.55)'
-      : 'rgba(255, 255, 255, 0.55)';
+  const scheme = prefersDark ? 'dark' : 'light';
+
+  // Surface fill selection. Three independent cases, none of which change box
+  // geometry:
+  //   - Default tiers 1/2 (backdrop-filter supported): NO fill — the blurred
+  //     backdrop carries the glass look. (Byte-for-byte unchanged.)
+  //   - Default tier 3 (no backdrop-filter): the translucent ~0.55 solid fill so
+  //     content stays legible instead of a transparent box. (Unchanged.)
+  //   - Reduced transparency ON: a MORE-opaque scheme-aware fill on every tier —
+  //     layered over the blurred backdrop on tiers 1/2, or a higher-alpha solid on
+  //     tier 3 — so the material reads as static frosted glass with no live lensing.
+  let surfaceBackground: string | undefined;
+  if (reducedTransparency) {
+    surfaceBackground = supportsBackdropFilter
+      ? REDUCED_TRANSPARENCY_FILL[scheme]
+      : REDUCED_TRANSPARENCY_SOLID_FILL[scheme];
+  } else if (!supportsBackdropFilter) {
+    surfaceBackground = scheme === 'dark' ? 'rgba(30, 30, 35, 0.55)' : 'rgba(255, 255, 255, 0.55)';
+  }
 
   const surfaceStyle: CSSProperties = {
     position: 'absolute',
@@ -526,11 +564,12 @@ export function LiquidGlass({
     borderRadius: radius,
     overflow: 'hidden',
     // Tiers 1/2 carry the frosted backdrop (with -webkit- prefix); tier 3 omits
-    // the filter entirely (no orphaned/unsupported declaration) and uses the
-    // translucent solid fill below.
-    ...(backdropFilter
-      ? { backdropFilter, WebkitBackdropFilter: backdropFilter }
-      : { background: solidFallbackBackground }),
+    // the filter entirely (no orphaned/unsupported declaration). The `background`
+    // is unset by default on tiers 1/2 (the backdrop carries the look), the ~0.55
+    // solid on tier 3, and a more-opaque frosting fill on EVERY tier when
+    // reduced-transparency is active (layered over the retained blur on 1/2).
+    ...(backdropFilter ? { backdropFilter, WebkitBackdropFilter: backdropFilter } : {}),
+    ...(surfaceBackground ? { background: surfaceBackground } : {}),
     // Pure-CSS beveled rim — renders in every browser, independent of canRefract.
     boxShadow: edgeShadow,
     transform: surfaceTransform,

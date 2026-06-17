@@ -69,6 +69,15 @@ export type GlassCapabilities = {
    */
   prefersReducedMotion: boolean;
   /**
+   * Whether the user has requested reduced transparency via
+   * `(prefers-reduced-transparency: reduce)`. When `true`, `<LiquidGlass>`
+   * suppresses live SVG refraction and renders a frostier, more-opaque surface.
+   * Orthogonal to {@link canRefract} — it applies on every tier and changes no
+   * box geometry. The authoritative live source is `useReducedTransparency()`;
+   * this field is a point-in-time snapshot.
+   */
+  prefersReducedTransparency: boolean;
+  /**
    * The single gate later plans consult: `true` only when the full refraction
    * effect can actually render
    * (`supportsBackdropFilter && supportsSvgBackdropDisplacement`). When `false`,

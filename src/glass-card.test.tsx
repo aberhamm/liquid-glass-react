@@ -17,6 +17,7 @@ function caps(canRefract: boolean, supportsBackdropFilter = canRefract): GlassCa
     supportsSvgBackdropDisplacement: canRefract,
     isFirefox: false,
     prefersReducedMotion: false,
+    prefersReducedTransparency: false,
     canRefract,
   };
 }

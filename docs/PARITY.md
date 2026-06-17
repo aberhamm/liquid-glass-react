@@ -82,6 +82,30 @@ Notes on the degraded tiers:
   with a `console.error` spy that fails on any hydration-mismatch warning. No path
   emits `console.error`/`console.warn`.
 
+## Accessibility: prefers-reduced-transparency (plan 013)
+
+Apple's Liquid Glass honors the OS "Reduce Transparency" setting by making the
+material frostier and more opaque and dropping the live lensing. We mirror that
+via the `(prefers-reduced-transparency: reduce)` media query.
+
+This is an axis **orthogonal** to the three capability tiers above — it applies
+on Chromium (`canRefract`) AND on both fallback tiers, and it changes **no box
+geometry** (no layout shift). The live, authoritative source is the
+`useReducedTransparency()` hook (matchMedia + a `'change'` listener, SSR-safe
+`false` default, reacts to a mid-session toggle); `detectGlassCapabilities()`
+also surfaces a point-in-time `prefersReducedTransparency` snapshot for parity
+with `prefersReducedMotion`, but it is not the reactive source.
+
+| Setting | Live SVG refraction (`url(#id)`) | Surface fill | Blur / saturate | Rim / bevel / elastic motion | Box geometry |
+| ------- | -------------------------------- | ------------ | --------------- | ---------------------------- | ------------ |
+| **Reduce Transparency OFF** (default) | Tier-1 only (Chromium): attached. Byte-for-byte unchanged. | Per-tier default (none on 1/2; ~0.55 solid on tier 3). | per tier | render in every tier | unchanged |
+| **Reduce Transparency ON** | **Dropped on every tier** — reuses the existing no-filter path (no SVG `url(#id)`, no `<filter>` element). | **More opaque**: ~0.75 scheme-aware fill layered over the retained blur on tiers 1/2; ~0.92 solid on tier 3. | retained (static frosted glass) | still render (they are polish, not transparency) | identical (no layout shift) |
+
+When active, `<LiquidGlass>` forces `filterActive = false` (so the SVG `url(#id)`
+is omitted exactly as on Firefox/WebKit) and raises the surface fill opacity. No
+fourth capability tier is introduced. Content stays legible in all combinations,
+and no path emits `console.error` / `console.warn`.
+
 ## Capability detection
 
 `detectGlassCapabilities()` (in `src/capabilities.ts`) probes:
