@@ -70,3 +70,29 @@ export {
   getGlassEdgeShadow,
   type GlassEdgeScheme,
 } from './glass-edge';
+
+// Backdrop-luminance sampling (plan 017). Infrastructure for content-adaptive
+// tint (plan 018): exported for advanced consumers who opt into adaptive tint.
+// This module is NOT referenced by the default `<LiquidGlass>` render path, so a
+// `LiquidGlass` import that doesn't use it tree-shakes it out.
+export {
+  averageColorToSample,
+  createCanvasSnapshotStrategy,
+  domBackgroundStrategy,
+  luminanceToScheme,
+  parseCssColor,
+  relativeLuminance,
+  safeSample,
+  sampleBackdropLuminance,
+  LIGHT_DARK_THRESHOLD,
+  UNSAMPLED,
+  type BackdropSample,
+  type BackdropScheme,
+  type Rgb,
+  type SamplingStrategy,
+  type SampleBackdropOptions,
+} from './backdrop-luminance';
+export {
+  useBackdropLuminance,
+  type UseBackdropLuminanceOptions,
+} from './use-backdrop-luminance';

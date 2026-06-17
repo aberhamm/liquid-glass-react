@@ -1,13 +1,16 @@
 ---
 id: 017
 title: Backdrop-luminance sampling infrastructure (lazy, taint-aware)
-status: in-progress
+status: done
 blocked-by: []
 priority:
 goal: apple-tier-liquid-glass-enhancements
 allows-migrations: false
 needs-review: none
 created: 2026-06-16
+completed: 2026-06-17
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -113,3 +116,34 @@ Checks:
 - [cmd] `pnpm build`
 - [assert] `node -e "const fs=require('fs');const mjs=fs.readFileSync('dist/index.mjs','utf8');process.stdout.write(/getImageData|elementsFromPoint|backdrop-luminance|estimateLuminance/.test(mjs)?'present':'absent')"` — document the result (the sampling code may be present in the full bundle but must be tree-shakeable / not on the default LiquidGlass render path; assert via the size/chunk strategy chosen).
 - [manual] Confirm a cross-origin tainted sample returns `sampled:false` without throwing or logging.
+
+## Implementation Notes
+
+Shipped the backdrop-luminance infrastructure as a React-free core
+(`src/backdrop-luminance.ts`: TSDoc'd pure `relativeLuminance` /
+`luminanceToScheme` / `averageColorToSample`, a documented
+`LIGHT_DARK_THRESHOLD` of 0.5, the pluggable `SamplingStrategy`, and an opt-in
+canvas-snapshot factory) plus the SSR-safe, rAF-throttled
+`useBackdropLuminance(ref, options?)` hook, both exported from `src/index.ts`.
+The DEFAULT strategy (`domBackgroundStrategy`) is canvas-free and taint-free: it
+walks `document.elementsFromPoint` at the element's center and composites
+computed `background-color`/opaque `background-image` layers over an
+assumed-white base — no pixels read, no `SecurityError` possible. Cross-origin
+taint is handled by a single total guard (`safeSample`) that converts ANY
+strategy throw (incl. `getImageData` `SecurityError`) into
+`{sampled:false, luminance:null, scheme:null}` with no rethrow and no logging;
+unit tests assert this with a silent `console.error` spy. Tree-shakeability was
+proven by (a) confirming no component render file imports the sampling module
+and (b) an esbuild tree-shake probe showing a `LiquidGlass`-only import bundles
+with all sampling symbols ABSENT — documented in
+`.mstack/evidence/plan-017/bundle-inspection.md`. 185 tests pass; no visual or
+public component behavior change. No deviations.
+
+**Files changed:**
+
+- `src/index.ts` (modified)
+- `src/backdrop-luminance.ts` (created)
+- `src/use-backdrop-luminance.ts` (created)
+- `src/backdrop-luminance.test.ts` (created)
+
+**Commit:** `6a406d3` — `feat(liquid-glass): backdrop-luminance sampling infrastructure`
