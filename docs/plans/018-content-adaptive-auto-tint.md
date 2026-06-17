@@ -1,7 +1,7 @@
 ---
 id: 018
 title: Content-adaptive auto-tint (adaptiveTint, auto light/dark)
-status: pending
+status: in-progress
 blocked-by: [014, 017]
 priority:
 goal: apple-tier-liquid-glass-enhancements
