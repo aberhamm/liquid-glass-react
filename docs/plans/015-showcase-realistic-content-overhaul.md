@@ -1,13 +1,16 @@
 ---
 id: 015
 title: Showcase overhaul — realistic content, draggable, scroll-under
-status: in-progress
+status: done
 blocked-by: []
 priority:
 goal: apple-tier-liquid-glass-enhancements
 allows-migrations: false
 needs-review: none
 created: 2026-06-16
+completed: 2026-06-17
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -105,3 +108,33 @@ Checks:
 - [assert] `pnpm e2e -- refraction 2>&1 | tail -15` contains `passed`
 - [browse] start `pnpm storybook` and verify the Draggable story lets you drag the glass over a photo with visible refraction, ScrollUnderGlass shows content moving under the glass, and CheapVsReal makes the displacement difference obvious — no console errors; then stop the dev server
 - [manual] The Showcase clearly sells the refraction over real content vs the old gradient.
+
+## Implementation Notes
+
+Reworked the Storybook demo surface only (no `src` runtime changes) to float
+glass over a rich, same-origin backdrop. The image
+(`public/demo/showcase-backdrop.webp`, 47KB WEBP, 1600×1000) is self-authored /
+procedurally generated (deterministic, seed 1509) and dedicated to the public
+domain under CC0 — documented in `public/demo/LICENSE.md` — and served
+same-origin via `staticDirs` in `.storybook/main.ts` so plan 018 can
+canvas-sample it without CORS taint. Showcase + Modes now render over the photo;
+new `Draggable` (pointer+touch via `globalMousePos`/`mouseContainer`),
+`ScrollUnderGlass` (sticky glass over a scrolling photo column), and
+`CheapVsReal` (blur-only vs full displacement) stories were added. All demo
+animation is gated behind `prefers-reduced-motion`. The committed Chromium pixel
+baseline was regenerated against the new Showcase and visually confirmed (glass
+clearly refracts the new photo / vertical-stripe band); the assertion itself is
+unchanged. The `[browse]` check ran via agent-browser: drag moved the panel with
+refraction active, the scroll column moved under a fixed glass bar, and
+CheapVsReal showed both panels — zero console errors.
+
+**Files changed:**
+
+- `.storybook/main.ts` (modified)
+- `.storybook/preview.tsx` (modified)
+- `src/liquid-glass.stories.tsx` (modified)
+- `e2e/refraction.spec.ts-snapshots/showcase-glass-chromium-chromium-darwin.png` (regenerated baseline)
+- `public/demo/showcase-backdrop.webp` (created)
+- `public/demo/LICENSE.md` (created)
+
+**Commit:** `a64793b` — `feat(storybook): showcase overhaul — real backdrop, draggable, scroll-under`

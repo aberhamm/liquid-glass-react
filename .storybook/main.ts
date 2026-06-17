@@ -24,6 +24,10 @@ import type { StorybookConfig } from '@storybook/react-vite';
 const config: StorybookConfig = {
   stories: ['../src/**/*.stories.@(ts|tsx)'],
   addons: ['@storybook/addon-essentials'],
+  // Serve the bundled demo backdrop SAME-ORIGIN (e.g. /demo/showcase-backdrop.webp).
+  // Same-origin is required so a later plan can sample the photo via <canvas>
+  // without cross-origin taint. Asset source/license: public/demo/LICENSE.md.
+  staticDirs: ['../public'],
   framework: {
     name: '@storybook/react-vite',
     options: {},

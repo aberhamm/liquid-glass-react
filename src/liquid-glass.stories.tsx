@@ -1,15 +1,24 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import type { ReactElement } from 'react';
+import { type ReactElement, useCallback, useRef, useState } from 'react';
 import { LiquidGlass } from './liquid-glass';
-import type { DisplacementMode } from './types';
+import type { DisplacementMode, MousePos } from './types';
+
+/**
+ * Same-origin demo backdrop (CC0, self-authored — see `public/demo/LICENSE.md`),
+ * served by Storybook from `public/demo/` via `staticDirs`. A rich synthetic
+ * image with high-frequency color + sharp edges so refraction edge-bending is
+ * obvious. Same-origin so it can be sampled via canvas without CORS taint.
+ */
+const DEMO_PHOTO_URL = './demo/showcase-backdrop.webp';
 
 /**
  * `<LiquidGlass>` is the low-level primitive every prebuilt component wraps. The
  * stories below are the interactive documentation surface: the `Playground`
  * exposes every prop as a live control, `Modes` exercises all five displacement
- * algorithms side by side, and `Showcase` floats glass over an animated backdrop
- * so refraction edge-bending and cursor elasticity read clearly in Chromium (and
- * degrade cleanly elsewhere — see the CrossBrowser story).
+ * algorithms over a real photo, `Showcase` floats glass over the demo photo, and
+ * the `Draggable` / `ScrollUnderGlass` / `CheapVsReal` stories let the viewer
+ * SEE refraction by moving content under the glass. Full refraction renders in
+ * Chromium and degrades cleanly elsewhere — see the CrossBrowser story.
  */
 const meta = {
   title: 'Components/LiquidGlass',
@@ -155,83 +164,107 @@ export const Modes: Story = {
   // surfaces via `render`, so the meta-level arg is a placeholder.
   args: { children: null },
   parameters: {
+    // Supplies its own full-bleed photo backdrop — opt out of the global one.
+    noBackdrop: true,
     docs: {
       description: {
         story:
-          'Side-by-side matrix of every displacement mode. Each tile shares the ' +
-          'same geometry so only the distortion algorithm differs.',
+          'Side-by-side matrix of every displacement mode over the same REAL ' +
+          'photo, so polar / prominent / shader / turbulence differences are ' +
+          'actually visible. Each tile shares the same geometry so only the ' +
+          'distortion algorithm differs. Stronger displacement is used here so ' +
+          'the per-mode character reads clearly against the busy backdrop.',
       },
     },
   },
   render: () => (
     <div
       style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-        gap: '2rem',
+        minHeight: '100vh',
         width: '100%',
-        maxWidth: '64rem',
+        boxSizing: 'border-box',
+        padding: '4rem 1.5rem',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: `center / cover no-repeat url("${DEMO_PHOTO_URL}")`,
       }}
     >
-      {MODES.map(({ mode, blurb }) => (
-        <figure
-          key={mode}
-          style={{
-            margin: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '0.75rem',
-          }}
-        >
-          <LiquidGlass mode={mode} cornerRadius={28} padding="28px 36px">
-            {glassLabel(mode)}
-          </LiquidGlass>
-          <figcaption
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: '2rem',
+          width: '100%',
+          maxWidth: '64rem',
+        }}
+      >
+        {MODES.map(({ mode, blurb }) => (
+          <figure
+            key={mode}
             style={{
-              color: '#fff',
-              fontSize: '0.8125rem',
-              textAlign: 'center',
-              maxWidth: '16rem',
-              textShadow: '0 1px 2px rgba(0,0,0,0.4)',
+              margin: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '0.75rem',
             }}
           >
-            <strong style={{ textTransform: 'capitalize' }}>{mode}</strong>
-            <br />
-            {blurb}
-          </figcaption>
-        </figure>
-      ))}
+            <LiquidGlass
+              mode={mode}
+              cornerRadius={28}
+              padding="28px 36px"
+              displacementScale={110}
+              aberrationIntensity={4}
+            >
+              {glassLabel(mode)}
+            </LiquidGlass>
+            <figcaption
+              style={{
+                color: '#fff',
+                fontSize: '0.8125rem',
+                textAlign: 'center',
+                maxWidth: '16rem',
+                textShadow: '0 1px 3px rgba(0,0,0,0.7)',
+              }}
+            >
+              <strong style={{ textTransform: 'capitalize' }}>{mode}</strong>
+              <br />
+              {blurb}
+            </figcaption>
+          </figure>
+        ))}
+      </div>
     </div>
   ),
 };
 
 /**
- * A deliberately designed showcase: a glass panel and pill floating over a rich,
- * slowly drifting gradient. The animation is pure CSS and is replaced with a
- * static backdrop under `prefers-reduced-motion: reduce`.
+ * A deliberately designed showcase: a glass panel and pill floating over the
+ * rich, same-origin demo PHOTO. A slow pan of the photo background drives motion
+ * under the glass so refraction edge-bending reads clearly; under
+ * `prefers-reduced-motion: reduce` the pan is dropped for a static backdrop.
  */
 export const Showcase: Story = {
   args: { children: null },
   parameters: {
     layout: 'fullscreen',
-    // Supplies its own full-bleed backdrop — opt out of the global gradient.
+    // Supplies its own full-bleed photo backdrop — opt out of the global one.
     noBackdrop: true,
     docs: {
       description: {
         story:
-          'Glass floating over an animated gradient + soft orbs so refraction ' +
-          'edge-bending and cursor elasticity are obvious. Honors ' +
-          'prefers-reduced-motion by falling back to a static backdrop.',
+          'Glass floating over the rich demo photo so refraction edge-bending and ' +
+          'cursor elasticity are obvious over REAL content (not a flat gradient). ' +
+          'The photo slowly pans beneath the glass; honors prefers-reduced-motion ' +
+          'by falling back to a static backdrop.',
       },
     },
   },
   render: () => (
     <div className="lg-showcase">
       <style>{SHOWCASE_CSS}</style>
-      <div className="lg-showcase__orb lg-showcase__orb--a" />
-      <div className="lg-showcase__orb lg-showcase__orb--b" />
-      <div className="lg-showcase__orb lg-showcase__orb--c" />
+      <div className="lg-showcase__photo" />
 
       <div className="lg-showcase__stack">
         <LiquidGlass cornerRadius={28} padding="32px 36px" displacementScale={80} saturation={160}>
@@ -251,8 +284,8 @@ export const Showcase: Story = {
               Light bends around the edges
             </h2>
             <p style={{ margin: 0, fontSize: '0.9375rem', lineHeight: 1.5, opacity: 0.92 }}>
-              Move your cursor across the panel to feel the elastic follow. The backdrop drifts
-              beneath the glass so the displacement reads clearly.
+              Move your cursor across the panel to feel the elastic follow. The photo drifts beneath
+              the glass so the displacement reads clearly over real content.
             </p>
           </div>
         </LiquidGlass>
@@ -276,9 +309,14 @@ const SHOWCASE_CSS = `
   padding: 4rem 1.5rem;
   box-sizing: border-box;
   overflow: hidden;
-  background: linear-gradient(120deg, #6a11cb 0%, #2575fc 40%, #ff6a88 100%);
-  background-size: 220% 220%;
-  animation: lg-showcase-pan 18s ease-in-out infinite;
+  background: #0c1024;
+}
+.lg-showcase__photo {
+  position: absolute;
+  inset: -6% -6% -6% -6%;
+  background: center / cover no-repeat url("${DEMO_PHOTO_URL}");
+  will-change: transform;
+  animation: lg-showcase-pan 24s ease-in-out infinite alternate;
 }
 .lg-showcase__stack {
   position: relative;
@@ -288,55 +326,365 @@ const SHOWCASE_CSS = `
   align-items: center;
   gap: 1.75rem;
 }
-.lg-showcase__orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(8px);
-  opacity: 0.8;
-  mix-blend-mode: screen;
-  will-change: transform;
-}
-.lg-showcase__orb--a {
-  width: 28rem; height: 28rem; top: -8rem; left: -6rem;
-  background: radial-gradient(circle, #ffd166 0%, transparent 70%);
-  animation: lg-orb-a 22s ease-in-out infinite;
-}
-.lg-showcase__orb--b {
-  width: 24rem; height: 24rem; bottom: -7rem; right: -5rem;
-  background: radial-gradient(circle, #06d6a0 0%, transparent 70%);
-  animation: lg-orb-b 26s ease-in-out infinite;
-}
-.lg-showcase__orb--c {
-  width: 20rem; height: 20rem; top: 30%; right: 20%;
-  background: radial-gradient(circle, #ef476f 0%, transparent 70%);
-  animation: lg-orb-c 30s ease-in-out infinite;
-}
 @keyframes lg-showcase-pan {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-}
-@keyframes lg-orb-a {
-  0%, 100% { transform: translate(0, 0); }
-  50% { transform: translate(6rem, 4rem); }
-}
-@keyframes lg-orb-b {
-  0%, 100% { transform: translate(0, 0); }
-  50% { transform: translate(-5rem, -3rem); }
-}
-@keyframes lg-orb-c {
-  0%, 100% { transform: translate(0, 0); }
-  50% { transform: translate(-4rem, 5rem); }
+  0%   { transform: translate3d(-3%, -2%, 0) scale(1.08); }
+  100% { transform: translate3d(3%, 2%, 0) scale(1.12); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .lg-showcase,
-  .lg-showcase__orb--a,
-  .lg-showcase__orb--b,
-  .lg-showcase__orb--c {
+  .lg-showcase__photo {
     animation: none;
+    transform: none;
+    inset: 0;
   }
-  .lg-showcase { background-position: 50% 50%; }
 }
 `;
+
+/**
+ * Draggable glass: grab the panel and drag it (pointer OR touch) across the
+ * busy photo. As it moves, DIFFERENT content refracts through the glass — the
+ * single clearest way to feel the displacement. Wired entirely through the
+ * existing public API: drag state feeds `globalMousePos` and the drag space is
+ * scoped to the stage via `mouseContainer`. No new component.
+ */
+const DraggableStory = (): ReactElement => {
+  const stageRef = useRef<HTMLDivElement>(null);
+  // Glass top-left within the stage, in CSS pixels.
+  const [pos, setPos] = useState<MousePos>({ x: 40, y: 40 });
+  // Controlled pointer position fed to the primitive (viewport coords).
+  const [globalMousePos, setGlobalMousePos] = useState<MousePos | undefined>(undefined);
+  const dragging = useRef(false);
+  // Offset from the glass top-left to the grab point, so the panel doesn't jump.
+  const grab = useRef<MousePos>({ x: 0, y: 0 });
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const rect = stage.getBoundingClientRect();
+      grab.current = {
+        x: e.clientX - rect.left - pos.x,
+        y: e.clientY - rect.top - pos.y,
+      };
+      dragging.current = true;
+      // Capture so dragging keeps working if the pointer leaves the handle.
+      e.currentTarget.setPointerCapture(e.pointerId);
+      setGlobalMousePos({ x: e.clientX, y: e.clientY });
+    },
+    [pos.x, pos.y],
+  );
+
+  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    setGlobalMousePos({ x: e.clientX, y: e.clientY });
+    if (!dragging.current) return;
+    const stage = stageRef.current;
+    if (!stage) return;
+    const rect = stage.getBoundingClientRect();
+    const maxX = rect.width - 280;
+    const maxY = rect.height - 180;
+    const nx = Math.min(Math.max(0, e.clientX - rect.left - grab.current.x), Math.max(0, maxX));
+    const ny = Math.min(Math.max(0, e.clientY - rect.top - grab.current.y), Math.max(0, maxY));
+    setPos({ x: nx, y: ny });
+  }, []);
+
+  const endDrag = useCallback(() => {
+    dragging.current = false;
+  }, []);
+
+  return (
+    <div
+      ref={stageRef}
+      style={{
+        position: 'relative',
+        minHeight: '100vh',
+        width: '100%',
+        overflow: 'hidden',
+        // `touch-action: none` lets the panel be dragged on touch screens
+        // without the browser hijacking the gesture for scrolling.
+        touchAction: 'none',
+        background: `center / cover no-repeat url("${DEMO_PHOTO_URL}")`,
+      }}
+    >
+      <p
+        style={{
+          position: 'absolute',
+          top: 16,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          margin: 0,
+          padding: '8px 16px',
+          borderRadius: 999,
+          background: 'rgba(0,0,0,0.45)',
+          color: '#fff',
+          fontSize: '0.875rem',
+          fontFamily: 'system-ui, sans-serif',
+          pointerEvents: 'none',
+          zIndex: 2,
+        }}
+      >
+        Drag the panel across the photo — watch the content refract underneath.
+      </p>
+
+      <div
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        style={{
+          position: 'absolute',
+          left: pos.x,
+          top: pos.y,
+          cursor: dragging.current ? 'grabbing' : 'grab',
+          touchAction: 'none',
+        }}
+      >
+        <LiquidGlass
+          cornerRadius={28}
+          padding="28px 32px"
+          displacementScale={100}
+          aberrationIntensity={4}
+          globalMousePos={globalMousePos}
+          mouseContainer={stageRef}
+        >
+          <div style={{ color: '#fff', maxWidth: '14rem', pointerEvents: 'none' }}>
+            <strong style={{ display: 'block', fontSize: '1.05rem' }}>Drag me</strong>
+            <span style={{ fontSize: '0.85rem', opacity: 0.9 }}>
+              Different content bends through the glass as it moves.
+            </span>
+          </div>
+        </LiquidGlass>
+      </div>
+    </div>
+  );
+};
+
+export const Draggable: Story = {
+  args: { children: null },
+  parameters: {
+    layout: 'fullscreen',
+    noBackdrop: true,
+    docs: {
+      description: {
+        story:
+          'Drag the glass panel (pointer or touch) across the busy photo to see ' +
+          'different content refract through it. Implemented purely with the ' +
+          'public API: drag state feeds `globalMousePos`, and `mouseContainer` ' +
+          'scopes the pointer space to the stage. No new component.',
+      },
+    },
+  },
+  render: () => <DraggableStory />,
+};
+
+/**
+ * Scroll-under-glass: a glass bar pinned over a column of scrolling cards, so
+ * the viewer sees real content move BEHIND the glass — the "lifts above
+ * scrolling content" effect. Auto-scroll is gated behind prefers-reduced-motion.
+ */
+const SCROLL_UNDER_CSS = `
+.lg-scroll {
+  position: relative;
+  height: 100vh;
+  width: 100%;
+  overflow-y: auto;
+  background: #0c1024;
+  scroll-behavior: smooth;
+}
+.lg-scroll__col {
+  max-width: 36rem;
+  margin: 0 auto;
+  padding: 7rem 1.5rem 6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.lg-scroll__card {
+  border-radius: 18px;
+  padding: 1.5rem 1.5rem;
+  min-height: 7rem;
+  color: #0c1024;
+  font-family: system-ui, sans-serif;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  background-size: cover;
+  background-position: center;
+}
+.lg-scroll__card h3 { margin: 0 0 0.4rem; font-size: 1.1rem; }
+.lg-scroll__card p { margin: 0; font-size: 0.9rem; line-height: 1.5; }
+.lg-scroll__bar {
+  position: sticky;
+  top: 1.5rem;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+`;
+
+const SCROLL_CARDS = [
+  { t: 'Refraction reads on motion', d: 'Glass only convinces when content moves under it.' },
+  { t: 'Edge-bending', d: 'High-frequency color makes the displacement obvious.' },
+  { t: 'Pinned chrome', d: 'A fixed glass bar over scrolling content is the classic use.' },
+  { t: 'Legibility', d: 'Frost + saturation keep text readable over busy photos.' },
+  { t: 'Same-origin', d: 'The backdrop is bundled, not remote — no CORS taint.' },
+  { t: 'Reduced motion', d: 'No auto-scroll when the user asks for less motion.' },
+  { t: 'Try scrolling', d: 'Drag the scrollbar or flick — the bar stays put.' },
+  { t: 'More content', d: 'Keep going to watch the photo cards pass under the glass.' },
+];
+
+const ScrollUnderGlassStory = (): ReactElement => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  return (
+    <div ref={scrollRef} className="lg-scroll">
+      <style>{SCROLL_UNDER_CSS}</style>
+
+      <div className="lg-scroll__bar">
+        <LiquidGlass
+          cornerRadius={999}
+          padding="14px 30px"
+          displacementScale={90}
+          aberrationIntensity={3}
+          mouseContainer={scrollRef}
+        >
+          <span
+            style={{
+              color: '#fff',
+              fontWeight: 600,
+              fontSize: '1rem',
+              fontFamily: 'system-ui, sans-serif',
+            }}
+          >
+            Pinned glass — scroll the cards beneath
+          </span>
+        </LiquidGlass>
+      </div>
+
+      <div className="lg-scroll__col">
+        {SCROLL_CARDS.map((c, i) => (
+          <article
+            key={c.t}
+            className="lg-scroll__card"
+            style={{
+              // Slice the demo photo so each card shows a different busy region
+              // moving under the glass as the column scrolls.
+              backgroundImage: `linear-gradient(rgba(255,255,255,0.78), rgba(255,255,255,0.78)), url("${DEMO_PHOTO_URL}")`,
+              backgroundPosition: `${(i * 137) % 100}% ${(i * 53) % 100}%`,
+            }}
+          >
+            <h3>{c.t}</h3>
+            <p>{c.d}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export const ScrollUnderGlass: Story = {
+  args: { children: null },
+  parameters: {
+    layout: 'fullscreen',
+    noBackdrop: true,
+    docs: {
+      description: {
+        story:
+          'A glass bar pinned over a scrolling column of photo cards. Scroll the ' +
+          'column and watch real content pass UNDER the glass (the "lifts above ' +
+          'scrolling content" effect). Any decorative motion is gated behind ' +
+          'prefers-reduced-motion.',
+      },
+    },
+  },
+  render: () => <ScrollUnderGlassStory />,
+};
+
+/**
+ * Cheap vs real: the same photo behind a plain `backdrop-filter: blur` panel
+ * (LEFT) and a full `<LiquidGlass>` displacement panel (RIGHT). Side by side,
+ * the refraction edge-bending the library adds over a naive blur is obvious.
+ */
+const CHEAP_VS_REAL_CSS = `
+.lg-cvr {
+  min-height: 100vh;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4rem 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2.5rem;
+  align-items: center;
+  justify-items: center;
+  background: center / cover no-repeat url("${DEMO_PHOTO_URL}");
+  font-family: system-ui, sans-serif;
+}
+.lg-cvr__cell { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+.lg-cvr__cheap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16rem;
+  min-height: 7rem;
+  padding: 28px 32px;
+  border-radius: 28px;
+  box-sizing: border-box;
+  /* The naive "glassmorphism" recipe: blur + a translucent fill. No displacement. */
+  background: rgba(255,255,255,0.12);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 30px rgba(0,0,0,0.2);
+}
+.lg-cvr__cap {
+  color: #fff;
+  text-align: center;
+  max-width: 18rem;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+}
+.lg-cvr__cap strong { display: block; font-size: 1rem; }
+.lg-cvr__cap span { font-size: 0.85rem; opacity: 0.9; }
+`;
+
+export const CheapVsReal: Story = {
+  args: { children: null },
+  parameters: {
+    layout: 'fullscreen',
+    noBackdrop: true,
+    docs: {
+      description: {
+        story:
+          'Plain `backdrop-filter: blur` (left) vs the full `<LiquidGlass>` ' +
+          'displacement (right) over the SAME photo. The right panel bends the ' +
+          'backdrop at its edges (refraction); the left only blurs it. The ' +
+          'difference is the whole point of the library.',
+      },
+    },
+  },
+  render: () => (
+    <div className="lg-cvr">
+      <style>{CHEAP_VS_REAL_CSS}</style>
+
+      <div className="lg-cvr__cell">
+        <div className="lg-cvr__cheap">{glassLabel('Blur only')}</div>
+        <p className="lg-cvr__cap">
+          <strong>Cheap — backdrop-filter: blur</strong>
+          <span>Frosts the photo but the edges stay straight. No refraction.</span>
+        </p>
+      </div>
+
+      <div className="lg-cvr__cell">
+        <LiquidGlass
+          cornerRadius={28}
+          padding="28px 32px"
+          displacementScale={110}
+          aberrationIntensity={5}
+        >
+          {glassLabel('Displacement')}
+        </LiquidGlass>
+        <p className="lg-cvr__cap">
+          <strong>Real — &lt;LiquidGlass&gt;</strong>
+          <span>The SVG displacement map bends the photo at the edges (Chromium).</span>
+        </p>
+      </div>
+    </div>
+  ),
+};
 
 /**
  * Cross-browser explainer. Mirrors `docs/PARITY.md`: Chromium gets full
