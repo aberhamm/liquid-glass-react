@@ -172,6 +172,9 @@ export const Modes: Story = {
   parameters: {
     // Supplies its own full-bleed photo backdrop — opt out of the global one.
     noBackdrop: true,
+    // Curated story with its own fixed-prop glass — the Controls panel is inert
+    // here, so hide it; only Playground is driven by the controls.
+    controls: { disable: true },
     docs: {
       description: {
         story:
@@ -264,6 +267,9 @@ export const Showcase: Story = {
     layout: 'fullscreen',
     // Supplies its own full-bleed Photos-app surface — opt out of the global one.
     noBackdrop: true,
+    // Curated story with its own fixed-prop glass — the Controls panel is inert
+    // here, so hide it; only Playground is driven by the controls.
+    controls: { disable: true },
     docs: {
       description: {
         story:
@@ -452,6 +458,9 @@ export const Draggable: Story = {
   parameters: {
     layout: 'fullscreen',
     noBackdrop: true,
+    // Curated story with its own fixed-prop glass — the Controls panel is inert
+    // here, so hide it; only Playground is driven by the controls.
+    controls: { disable: true },
     docs: {
       description: {
         story:
@@ -585,6 +594,9 @@ export const ScrollUnderGlass: Story = {
   parameters: {
     layout: 'fullscreen',
     noBackdrop: true,
+    // Curated story with its own fixed-prop glass — the Controls panel is inert
+    // here, so hide it; only Playground is driven by the controls.
+    controls: { disable: true },
     docs: {
       description: {
         story:
@@ -718,6 +730,9 @@ export const ScrollAwareShadow: Story = {
   parameters: {
     layout: 'fullscreen',
     noBackdrop: true,
+    // Curated story with its own fixed-prop glass — the Controls panel is inert
+    // here, so hide it; only Playground is driven by the controls.
+    controls: { disable: true },
     docs: {
       description: {
         story:
@@ -790,6 +805,9 @@ export const CheapVsReal: Story = {
   parameters: {
     layout: 'fullscreen',
     noBackdrop: true,
+    // Curated story with its own fixed-prop glass — the Controls panel is inert
+    // here, so hide it; only Playground is driven by the controls.
+    controls: { disable: true },
     docs: {
       description: {
         story:
@@ -842,6 +860,9 @@ export const Specular: Story = {
   parameters: {
     layout: 'fullscreen',
     noBackdrop: true,
+    // Curated story with its own fixed-prop glass — the Controls panel is inert
+    // here, so hide it; only Playground is driven by the controls.
+    controls: { disable: true },
     docs: {
       description: {
         story:
@@ -938,6 +959,9 @@ export const AdaptiveTint: Story = {
   parameters: {
     layout: 'fullscreen',
     noBackdrop: true,
+    // Curated story with its own fixed-prop glass — the Controls panel is inert
+    // here, so hide it; only Playground is driven by the controls.
+    controls: { disable: true },
     docs: {
       description: {
         story:
@@ -1057,6 +1081,9 @@ export const Variants: Story = {
   parameters: {
     layout: 'fullscreen',
     noBackdrop: true,
+    // Curated story with its own fixed-prop glass — the Controls panel is inert
+    // here, so hide it; only Playground is driven by the controls.
+    controls: { disable: true },
     docs: {
       description: {
         story:
@@ -1175,6 +1202,9 @@ export const CrossBrowser: Story = {
   parameters: {
     layout: 'fullscreen',
     noBackdrop: true,
+    // Curated story with its own fixed-prop glass — the Controls panel is inert
+    // here, so hide it; only Playground is driven by the controls.
+    controls: { disable: true },
     docs: {
       description: {
         story:
