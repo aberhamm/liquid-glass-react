@@ -76,3 +76,64 @@ test.describe('Elastic interaction (chromium + firefox)', () => {
     expect(afterSecondMove).not.toBe(afterMoveTransform);
   });
 });
+
+test.describe('Specular hotspot tracks the pointer (chromium + firefox)', () => {
+  test('pointer move over the glass changes the specular highlight position', async ({
+    page,
+    browserName,
+  }) => {
+    // WebKit headless mouse simulation is unreliable for this kind of tracking
+    // test (see the elastic test above); gate to chromium + firefox.
+    test.skip(browserName === 'webkit', 'Specular tracking test limited to chromium/firefox');
+
+    const consoleErrors: string[] = [];
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') consoleErrors.push(msg.text());
+    });
+    page.on('pageerror', (err) => consoleErrors.push(err.message));
+
+    await page.goto('/iframe.html?id=components-liquidglass--specular&viewMode=story');
+    await page.waitForSelector('[data-lg-highlight]', { state: 'attached' });
+
+    const highlight = page.locator('[data-lg-highlight]').first();
+    await expect(highlight).toBeAttached();
+
+    // Allow initial mount/measurement to complete.
+    await page.waitForTimeout(300);
+
+    // The specular center is written to the --lg-spec-x/y custom props on the
+    // highlight layer's inline style. Read them straight off the element.
+    const readSpec = async (): Promise<string> =>
+      highlight.evaluate((el) => {
+        const s = (el as HTMLElement).style;
+        return `${s.getPropertyValue('--lg-spec-x')}|${s.getPropertyValue('--lg-spec-y')}`;
+      });
+
+    // At rest: neutral top-biased fallback (50% / 0%).
+    const atRestSpec = await readSpec();
+
+    const box = await highlight.boundingBox();
+    if (box === null) {
+      throw new Error('Highlight element has no bounding box — element not visible');
+    }
+    const centerX = box.x + box.width / 2;
+    const centerY = box.y + box.height / 2;
+
+    // Move the pointer to the upper-left quadrant over the glass.
+    await page.mouse.move(centerX - box.width / 4, centerY - box.height / 4);
+    await page.waitForTimeout(200);
+    const afterMoveSpec = await readSpec();
+
+    // The tracked specular position must differ from the rest fallback.
+    expect(afterMoveSpec).not.toBe(atRestSpec);
+
+    // Move to the opposite quadrant: the position must change again.
+    await page.mouse.move(centerX + box.width / 4, centerY + box.height / 4);
+    await page.waitForTimeout(200);
+    const afterSecondSpec = await readSpec();
+    expect(afterSecondSpec).not.toBe(afterMoveSpec);
+
+    // No console errors through the specular path.
+    expect(consoleErrors).toHaveLength(0);
+  });
+});

@@ -1030,6 +1030,165 @@ describe('prefers-contrast: more (plan 014)', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Plan 016 — pointer-tracked specular hotspot + glow-on-press.
+// ---------------------------------------------------------------------------
+
+describe('pointer-tracked specular hotspot + glow-on-press (plan 016)', () => {
+  /** Find the specular hotspot layer. */
+  function getHighlight(container: HTMLElement): HTMLElement {
+    const el = container.querySelector<HTMLElement>('[data-lg-highlight]');
+    if (!el) throw new Error('specular highlight element not found');
+    return el;
+  }
+
+  /** Find the press-glow layer. */
+  function getPressGlow(container: HTMLElement): HTMLElement {
+    const el = container.querySelector<HTMLElement>('[data-lg-press-glow]');
+    if (!el) throw new Error('press-glow element not found');
+    return el;
+  }
+
+  it('renders a positioned radial specular hotspot (not an angle-only linear sweep)', () => {
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const highlight = getHighlight(container);
+    // The hotspot is a radial-gradient driven by the --lg-spec-x/y custom props.
+    expect(highlight.style.background).toMatch(/radial-gradient/);
+    expect(highlight.style.background).not.toMatch(/linear-gradient/);
+    expect(highlight.style.background).toMatch(/var\(--lg-spec-x/);
+    expect(highlight.style.mixBlendMode).toBe('screen');
+    // It is decorative: aria-hidden + never intercepts pointer events.
+    expect(highlight.getAttribute('aria-hidden')).toBe('true');
+    expect(highlight.style.pointerEvents).toBe('none');
+  });
+
+  it('UPDATES the specular position custom props after a synthetic pointer move', () => {
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const highlight = getHighlight(container);
+
+    // At rest: neutral top-biased fallback (50% / 0%).
+    const restX = highlight.style.getPropertyValue('--lg-spec-x');
+    const restY = highlight.style.getPropertyValue('--lg-spec-y');
+    expect(restX).toBe('50%');
+    expect(restY).toBe('0%');
+
+    act(() => {
+      // Wrapper center is (160,48) given the 320x96 stubbed rect; move off-center
+      // so the tracked hotspot position differs from the rest fallback.
+      fireEvent.mouseMove(document, { clientX: 240, clientY: 72 });
+    });
+
+    const movedX = highlight.style.getPropertyValue('--lg-spec-x');
+    const movedY = highlight.style.getPropertyValue('--lg-spec-y');
+    // The written position changed (the hotspot now tracks the cursor).
+    expect(movedX).not.toBe(restX);
+    expect(movedY).not.toBe(restY);
+    // And it reads as a percentage center, not the rest fallback.
+    expect(movedX).toMatch(/%$/);
+    expect(movedY).toMatch(/%$/);
+  });
+
+  it('blooms the press-glow on pointerdown and fades it on release', () => {
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const wrapper = container.firstElementChild as HTMLElement;
+    const glow = getPressGlow(container);
+
+    // At rest the glow is invisible.
+    expect(glow.style.opacity).toBe('0');
+    expect(glow.style.background).toMatch(/radial-gradient/);
+    expect(glow.getAttribute('aria-hidden')).toBe('true');
+    expect(glow.style.pointerEvents).toBe('none');
+
+    act(() => {
+      fireEvent.mouseDown(wrapper);
+    });
+    // Pressed: the glow blooms to full opacity.
+    expect(glow.style.opacity).toBe('1');
+
+    act(() => {
+      fireEvent.mouseUp(wrapper);
+    });
+    // Released: back to invisible (the opacity transition fades it out in the UI).
+    expect(glow.style.opacity).toBe('0');
+  });
+
+  it('keeps the hotspot static (neutral, no tracking) under reduced motion', () => {
+    installMatchMedia({ reducedMotion: true });
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const highlight = getHighlight(container);
+
+    act(() => {
+      fireEvent.mouseMove(document, { clientX: 240, clientY: 72 });
+    });
+
+    // Reduced motion suppresses tracking: the hotspot stays at the neutral rest
+    // position regardless of pointer movement.
+    expect(highlight.style.getPropertyValue('--lg-spec-x')).toBe('50%');
+    expect(highlight.style.getPropertyValue('--lg-spec-y')).toBe('0%');
+    // And the background-position transition is omitted (no chasing animation).
+    expect(highlight.style.transition).not.toMatch(/background-position/);
+  });
+
+  it('does not animate the press-glow under reduced motion (no opacity transition)', () => {
+    installMatchMedia({ reducedMotion: true });
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const glow = getPressGlow(container);
+    expect(glow.style.transition).not.toMatch(/opacity/);
+  });
+
+  it('renders the specular + press-glow layers regardless of canRefract', () => {
+    mockCapabilities.mockReturnValue(caps(false, false));
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    // Pure-CSS polish: present even on the most degraded tier.
+    expect(container.querySelector('[data-lg-highlight]')).not.toBeNull();
+    expect(container.querySelector('[data-lg-press-glow]')).not.toBeNull();
+  });
+
+  it('renders without console.error / console.warn through the specular + press path', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const wrapper = container.firstElementChild as HTMLElement;
+    act(() => {
+      fireEvent.mouseMove(document, { clientX: 240, clientY: 72 });
+      fireEvent.mouseDown(wrapper);
+      fireEvent.mouseUp(wrapper);
+    });
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+});
+
 describe('console cleanliness across tiers (plan 006)', () => {
   it('renders every tier without console.error or console.warn', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});

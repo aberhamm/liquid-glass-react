@@ -687,6 +687,107 @@ export const CheapVsReal: Story = {
 };
 
 /**
+ * Specular hotspot + glow-on-press (plan 016): a positioned radial highlight
+ * that tracks the pointer across the glass, plus an inner glow that blooms from
+ * the contact point on press. Both are pure CSS (render in every engine,
+ * independent of refraction) and gate on prefers-reduced-motion. Demonstrated
+ * over the same real demo photo used by the Showcase story.
+ */
+export const Specular: Story = {
+  args: { children: null },
+  parameters: {
+    layout: 'fullscreen',
+    noBackdrop: true,
+    docs: {
+      description: {
+        story:
+          'Move the cursor across the panel: a bright specular hotspot tracks the ' +
+          'pointer like light catching on glass (not a flat angle sweep). Press ' +
+          'and a glow blooms outward from the contact point, then fades. Pure CSS ' +
+          '— renders in every engine regardless of refraction support — and gated ' +
+          'on prefers-reduced-motion (static hotspot, no animated bloom).',
+      },
+    },
+  },
+  render: () => (
+    <div className="lg-spec">
+      <style>{SPECULAR_CSS}</style>
+      <div className="lg-spec__photo" />
+
+      <div className="lg-spec__stack">
+        <LiquidGlass
+          cornerRadius={28}
+          padding="36px 40px"
+          displacementScale={80}
+          saturation={160}
+          onClick={() => {}}
+        >
+          <div style={{ color: '#fff', maxWidth: '22rem', pointerEvents: 'none' }}>
+            <p
+              style={{
+                margin: '0 0 0.5rem',
+                fontSize: '0.75rem',
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                opacity: 0.8,
+              }}
+            >
+              Specular, live
+            </p>
+            <h2 style={{ margin: '0 0 0.5rem', fontSize: '1.5rem', lineHeight: 1.2 }}>
+              The highlight follows your cursor
+            </h2>
+            <p style={{ margin: 0, fontSize: '0.9375rem', lineHeight: 1.5, opacity: 0.92 }}>
+              Move across the panel to ride the specular hotspot, then press to bloom a glow from
+              the contact point.
+            </p>
+          </div>
+        </LiquidGlass>
+
+        <LiquidGlass
+          cornerRadius={999}
+          padding="14px 28px"
+          displacementScale={60}
+          onClick={() => {}}
+        >
+          <span style={{ color: '#fff', fontWeight: 600, fontSize: '1rem', pointerEvents: 'none' }}>
+            Press me
+          </span>
+        </LiquidGlass>
+      </div>
+    </div>
+  ),
+};
+
+const SPECULAR_CSS = `
+.lg-spec {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 1.5rem;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #0c1024;
+}
+.lg-spec__photo {
+  position: absolute;
+  inset: 0;
+  background: center / cover no-repeat url("${DEMO_PHOTO_URL}");
+}
+.lg-spec__stack {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.75rem;
+}
+`;
+
+/**
  * Cross-browser explainer. Mirrors `docs/PARITY.md`: Chromium gets full
  * refraction; Firefox and Safari/WebKit fall back to a frosted (non-refractive)
  * surface with identical geometry; engines without `backdrop-filter` get a solid

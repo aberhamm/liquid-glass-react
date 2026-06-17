@@ -1,13 +1,16 @@
 ---
 id: 016
 title: Pointer-tracked specular hotspot and glow-on-press
-status: in-progress
+status: done
 blocked-by: []
 priority:
 goal: apple-tier-liquid-glass-enhancements
 allows-migrations: false
 needs-review: none
 created: 2026-06-16
+completed: 2026-06-17
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -116,3 +119,36 @@ Checks:
 - [cmd] `pnpm e2e -- refraction` (passes with regenerated baseline)
 - [browse] start `pnpm storybook`, open the Specular story, move the cursor across the glass and confirm the highlight tracks the pointer and a press blooms a glow; no console errors; stop the server
 - [manual] The specular hotspot looks like light on glass, not a flat gradient sweep.
+
+## Implementation Notes
+
+Replaced the angle-only linear-gradient highlight with a positioned
+`radial-gradient` specular hotspot driven by `--lg-spec-x`/`--lg-spec-y` CSS
+custom props computed from `useMousePosition` (neutral top-biased `50%/0%`
+fallback at rest), and added a `[data-lg-press-glow]` radial layer that blooms
+from the contact point on pointerdown and fades via an opacity transition. Both
+are pure-CSS decorative siblings (`aria-hidden`, `pointer-events:none`,
+screen-blended), render in every engine regardless of `canRefract`, and gate on
+`useReducedMotion` (static hotspot + no animated bloom). GlassButton `shine`
+reconciliation: its diagonal `::after` sweep lives on the button element inside
+the content layer while the press-glow is a surface-side sibling behind content,
+so they compose on different nodes/layers (documented in a code comment). Added
+8 unit tests, a cross-engine Playwright interaction spec (chromium+firefox), and
+a `Specular` story over the 015 real photo. `[browse]` ran via gstack: hotspot
+tracked (`50%|0%`→`25%|25%`), press glow opacity 0→1→0, zero console errors.
+
+**Note:** the Chromium pixel baseline was re-run with `--update-snapshots` but
+came out byte-identical (resting-highlight change is within the 3% diff
+tolerance), so the committed PNG is unchanged and still passes — no baseline
+commit needed. Also added `.gstack/` to `.gitignore` (browse-tooling artifact,
+consistent with the existing `.mstack/` ignore).
+
+**Files changed:**
+
+- `src/liquid-glass.tsx` (modified)
+- `src/liquid-glass.test.tsx` (modified)
+- `src/liquid-glass.stories.tsx` (modified)
+- `e2e/interaction.spec.ts` (modified)
+- `.gitignore` (modified)
+
+**Commit:** `8b200b7` — `feat(liquid-glass): pointer-tracked specular hotspot + press glow`

@@ -125,6 +125,42 @@ const CONTRAST_BORDER_COLOR = {
 /** Inset solid-border ring width (px), prepended to the surface box-shadow. */
 const CONTRAST_BORDER_WIDTH = 2;
 
+// ---------------------------------------------------------------------------
+// Pointer-tracked specular hotspot + glow-on-press (plan 016)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resting specular-hotspot center as a percentage of the surface box. With no
+ * pointer over the glass (or under reduced-motion) the highlight falls back to a
+ * neutral, top-biased position so the material reads like overhead light on
+ * glass rather than a flat sweep. Top-center, slightly above the box.
+ */
+const SPECULAR_REST_X = '50%';
+const SPECULAR_REST_Y = '0%';
+
+/**
+ * Peak opacity of the specular hotspot's bright core (the inner stop). Hover
+ * brightens it slightly (see {@link LiquidGlass}); these are the base values.
+ */
+const SPECULAR_CORE_OPACITY = { rest: 0.55, hover: 0.85 } as const;
+
+/**
+ * Radius of the specular hotspot gradient as a percentage of the surface's
+ * larger dimension. Big enough to read as a soft glassy hotspot, small enough
+ * that it tracks visibly rather than washing the whole surface.
+ */
+const SPECULAR_RADIUS = '70%';
+
+/**
+ * Peak opacity of the press-glow bloom's core when active. The glow originates
+ * at the contact point and spreads, then fades via the layer's opacity
+ * transition (gated on reduced-motion).
+ */
+const PRESS_GLOW_OPACITY = 0.5;
+
+/** Radius of the press-glow bloom as a percentage of the surface box. */
+const PRESS_GLOW_RADIUS = '60%';
+
 /**
  * More-opaque scheme-aware surface fill under increased contrast: it reduces
  * the backdrop tint/show-through so foreground content reads at a higher
@@ -402,6 +438,20 @@ function GlassFilter({
  * CSS bevel (`glass-edge.ts`) is an inset `box-shadow` on the surface, while the
  * outer drop-shadow/glow is a SEPARATE sibling element rendered BEHIND the
  * `overflow:hidden` surface so clipping can't eat it.
+ *
+ * ## Specular hotspot + glow-on-press (plan 016)
+ *
+ * The highlight layer is a POSITIONED `radial-gradient` specular hotspot whose
+ * center tracks the pointer over the glass (driven by `--lg-spec-x/y` from
+ * {@link useMousePosition}), with a neutral top-biased fallback at rest. A second
+ * `[data-lg-press-glow]` layer blooms a radial glow from the contact point on
+ * press and fades out. Both are pure CSS (gradient/opacity/transform), render in
+ * EVERY engine regardless of `canRefract` (polish, not refraction), and are
+ * GATED on {@link useReducedMotion}: when reduced-motion is set the hotspot is
+ * static (neutral, no tracking) and the press glow snaps without animating. They
+ * are decorative siblings (aria-hidden, pointer-events:none) and never touch
+ * layout/geometry. They compose with {@link GlassButton}'s diagonal `shine`
+ * sweep (a `::after` on the button element) — different nodes, different layers.
  */
 export function LiquidGlass({
   children,
@@ -556,9 +606,39 @@ export function LiquidGlass({
     2,
   )}px) scale(${(scale.scaleX * pressScale).toFixed(4)}, ${(scale.scaleY * pressScale).toFixed(4)})`;
 
-  // Gradient angle tracks the horizontal mouse offset so the rim catches light
-  // from the cursor side. Baseline 135deg (top-left light) shifted by offset.x.
+  // Gradient angle tracks the horizontal mouse offset so the rim/border catches
+  // light from the cursor side. Baseline 135deg (top-left light) shifted by
+  // offset.x. The border layer still uses this; the highlight is now a positioned
+  // radial specular hotspot (below), not an angle-only linear sweep.
   const gradientAngle = 135 + (motionLive ? offset.x * 0.15 : 0);
+
+  // --- Pointer-tracked specular hotspot (plan 016) -------------------------
+  // Convert the pointer offset (relative to the wrapper center) into a center
+  // position within the surface box, expressed as a percentage so the
+  // radial-gradient `circle at <x> <y>` tracks the actual cursor. When the
+  // pointer is absent or motion is suppressed (reduced-motion / touch), fall
+  // back to a neutral, top-biased rest position so the resting appearance is
+  // sensible and stable. The math treats the wrapper center as 50%/50% and maps
+  // the offset by half the measured dimension; clamped to a small over-scan so
+  // the hotspot can ride the very edge without snapping inside.
+  let specX = SPECULAR_REST_X;
+  let specY = SPECULAR_REST_Y;
+  if (motionLive && measured) {
+    const pctX = 50 + (offset.x / (dimensions.width / 2)) * 50;
+    const pctY = 50 + (offset.y / (dimensions.height / 2)) * 50;
+    const clamp = (v: number): number => Math.max(-20, Math.min(120, v));
+    specX = `${clamp(pctX).toFixed(2)}%`;
+    specY = `${clamp(pctY).toFixed(2)}%`;
+  }
+
+  // --- Glow-from-within on press (plan 016) --------------------------------
+  // A second radial layer that blooms from the contact point on pointerdown and
+  // fades out via an opacity transition. Origin reuses the same tracked specular
+  // position (the contact point) when available, else the surface center.
+  // Under reduced-motion the bloom is static (snaps on/off, no transition).
+  const pressGlowActive = pressed;
+  const pressGlowX = motionLive && measured ? specX : '50%';
+  const pressGlowY = motionLive && measured ? specY : '50%';
 
   // Bevel rim variant keyed off prefers-color-scheme.
   const edgeShadow = getGlassEdgeShadow(prefersDark ? 'dark' : 'light');
@@ -574,7 +654,7 @@ export function LiquidGlass({
     : edgeShadow;
 
   // Hover brightens the highlight layers slightly.
-  const highlightOpacity = hovered ? 0.9 : 0.6;
+  const specularCoreOpacity = hovered ? SPECULAR_CORE_OPACITY.hover : SPECULAR_CORE_OPACITY.rest;
   const borderOpacity = hovered ? 0.55 : 0.35;
 
   const wrapperStyle: CSSProperties = {
@@ -651,16 +731,53 @@ export function LiquidGlass({
     pointerEvents: 'none',
   };
 
-  // Highlight layer: a bright moving sheen using `screen` blend so it adds light
-  // without a hard edge. Tracks the gradient angle.
+  // Specular hotspot layer (plan 016): a positioned radial highlight that tracks
+  // the pointer over the glass (neutral top-biased fallback at rest / under
+  // reduced-motion), using `screen` blend so it adds light without a hard edge.
+  // This REPLACES the old angle-only linear sweep. The center is driven by CSS
+  // custom props (`--lg-spec-x/y`) consumed by `radial-gradient(circle at ...)`,
+  // so a pointer move repaints the hotspot under the cursor — pure CSS, every
+  // engine, independent of `canRefract`. The `background` transition is omitted
+  // under reduced-motion so the hotspot is static, not chasing.
   const highlightStyle: CSSProperties = {
     position: 'absolute',
     inset: 0,
     borderRadius: radius,
     transform: surfaceTransform,
-    transition: 'transform 120ms ease-out',
+    transition: reducedMotion
+      ? 'transform 120ms ease-out'
+      : 'transform 120ms ease-out, background-position 120ms ease-out',
     mixBlendMode: 'screen',
-    background: `linear-gradient(${gradientAngle}deg, rgba(255,255,255,${highlightOpacity}) 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0) 60%, rgba(255,255,255,${highlightOpacity * 0.5}) 100%)`,
+    // Custom props expose the tracked center; the gradient consumes them so a
+    // re-render (pointer move) only changes the variables, not the layer markup.
+    ['--lg-spec-x' as string]: specX,
+    ['--lg-spec-y' as string]: specY,
+    background: `radial-gradient(circle ${SPECULAR_RADIUS} at var(--lg-spec-x, ${SPECULAR_REST_X}) var(--lg-spec-y, ${SPECULAR_REST_Y}), rgba(255,255,255,${specularCoreOpacity}) 0%, rgba(255,255,255,${(specularCoreOpacity * 0.4).toFixed(3)}) 30%, rgba(255,255,255,0) 65%)`,
+    zIndex: 0,
+    pointerEvents: 'none',
+  };
+
+  // Press-glow layer (plan 016): a radial bloom that "illuminates from within"
+  // on press, originating at the contact point and fading via an opacity
+  // transition once released. Composes ADDITIVELY (screen blend) with the
+  // specular hotspot above and is independent of GlassButton's own diagonal
+  // `shine` sweep (that is a `::after` on the button element inside the content
+  // layer; this glow is a surface-side sibling behind the content) — the two
+  // never share a node, so they layer rather than conflict. Under reduced-motion
+  // the bloom snaps on/off (no transition).
+  const pressGlowStyle: CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    borderRadius: radius,
+    transform: surfaceTransform,
+    mixBlendMode: 'screen',
+    ['--lg-spec-x' as string]: pressGlowX,
+    ['--lg-spec-y' as string]: pressGlowY,
+    background: `radial-gradient(circle ${PRESS_GLOW_RADIUS} at var(--lg-spec-x, 50%) var(--lg-spec-y, 50%), rgba(255,255,255,${PRESS_GLOW_OPACITY}) 0%, rgba(255,255,255,${(PRESS_GLOW_OPACITY * 0.5).toFixed(3)}) 25%, rgba(255,255,255,0) 55%)`,
+    opacity: pressGlowActive ? 1 : 0,
+    transition: reducedMotion
+      ? 'transform 120ms ease-out'
+      : 'transform 120ms ease-out, opacity 360ms ease-out',
     zIndex: 0,
     pointerEvents: 'none',
   };
@@ -723,9 +840,12 @@ export function LiquidGlass({
         ) : null}
       </div>
 
-      {/* Rim-light highlight + border layers (pure CSS blend, every browser).
-          Siblings of the content layer, so the blend never touches children. */}
+      {/* Pointer-tracked specular hotspot + press-glow + rim-light border layers
+          (pure CSS blend, every browser). Siblings of the content layer, so the
+          blend never touches children. All are aria-hidden + pointer-events:none
+          decoration that never affects layout/geometry. */}
       <span data-lg-highlight="" style={highlightStyle} aria-hidden="true" />
+      <span data-lg-press-glow="" style={pressGlowStyle} aria-hidden="true" />
       <span data-lg-border="" style={borderStyle} aria-hidden="true" />
 
       {/* Content layer: sibling of the surface, above it, unfiltered. */}
