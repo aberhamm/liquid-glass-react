@@ -1,7 +1,7 @@
 ---
 id: 016
 title: Pointer-tracked specular hotspot and glow-on-press
-status: pending
+status: in-progress
 blocked-by: []
 priority:
 goal: apple-tier-liquid-glass-enhancements
