@@ -20,7 +20,7 @@
  * stay for one-shot detection, but it is not the live reactive source.)
  */
 
-import { useEffect, useState } from 'react';
+import { useMediaQuery } from './use-media-query';
 
 /** The media query string this hook owns. */
 const REDUCED_TRANSPARENCY_QUERY = '(prefers-reduced-transparency: reduce)';
@@ -32,34 +32,5 @@ const REDUCED_TRANSPARENCY_QUERY = '(prefers-reduced-transparency: reduce)';
  * `(prefers-reduced-transparency: reduce)` value, updating on OS-level changes.
  */
 export function useReducedTransparency(): boolean {
-  // Conservative no-reduction default keeps SSR and the first client render in
-  // agreement; the mount effect upgrades to the real value.
-  const [reduced, setReduced] = useState<boolean>(false);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-      return;
-    }
-
-    const mql = window.matchMedia(REDUCED_TRANSPARENCY_QUERY);
-
-    // Sync once on mount (the SSR default may now be stale).
-    setReduced(mql.matches);
-
-    const onChange = (event: MediaQueryListEvent): void => {
-      setReduced(event.matches);
-    };
-
-    // addEventListener is the modern API; addListener is the deprecated
-    // fallback for older Safari/WebKit that predate it.
-    if (typeof mql.addEventListener === 'function') {
-      mql.addEventListener('change', onChange);
-      return () => mql.removeEventListener('change', onChange);
-    }
-
-    mql.addListener(onChange);
-    return () => mql.removeListener(onChange);
-  }, []);
-
-  return reduced;
+  return useMediaQuery(REDUCED_TRANSPARENCY_QUERY);
 }
