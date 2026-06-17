@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { type ReactElement, useCallback, useRef, useState } from 'react';
 import { LiquidGlass } from './liquid-glass';
 import { PhotosAppBackdrop, SANS_FONT, photoTileBackground } from './photos-app-backdrop';
-import type { DisplacementMode, MousePos } from './types';
+import type { DisplacementMode, LiquidGlassProps, MousePos } from './types';
 
 /**
  * `<LiquidGlass>` is the low-level primitive every prebuilt component wraps. The
@@ -141,15 +141,138 @@ const glassLabel = (text: string): ReactElement => (
   </span>
 );
 
+const PLAYGROUND_CSS = `
+.lg-pg {
+  position: relative;
+  height: 100vh;
+  width: 100%;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #fbfcfe 0%, #eef1f6 100%);
+  font-family: ${SANS_FONT};
+}
+.lg-pg__bar {
+  position: sticky;
+  top: 1.5rem;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+.lg-pg__col {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.lg-pg__card {
+  position: relative;
+  border-radius: 18px;
+  padding: 1.5rem;
+  min-height: 9rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.22);
+  overflow: hidden;
+}
+.lg-pg__card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0) 35%, rgba(15, 23, 42, 0.5) 100%);
+  pointer-events: none;
+}
+.lg-pg__card h3,
+.lg-pg__card p { position: relative; z-index: 1; margin: 0; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45); }
+.lg-pg__card h3 { font-size: 1.05rem; margin-bottom: 0.35rem; }
+.lg-pg__card p { font-size: 0.9rem; line-height: 1.5; opacity: 0.95; }
+`;
+
+const PLAYGROUND_CARDS = [
+  {
+    t: 'Scroll me under the glass',
+    d: 'The bar above is pinned — flick or drag the scrollbar and watch real content pass beneath it.',
+  },
+  {
+    t: 'Tweak while you scroll',
+    d: 'Every prop in the Controls panel updates the glass live, even mid-scroll.',
+  },
+  { t: 'displacementScale', d: 'Higher values bend the photo behind the glass more aggressively.' },
+  {
+    t: 'aberrationIntensity',
+    d: 'Adds RGB channel separation (rainbow fringing) at the refracted edges.',
+  },
+  {
+    t: 'cornerRadius / padding',
+    d: 'Reshape and resize the glass surface — geometry stays layout-shift free.',
+  },
+  { t: 'mode', d: 'Swap the displacement algorithm: polar, prominent, shader, turbulence.' },
+  {
+    t: 'variant: clear',
+    d: 'A permanently more transparent, non-adaptive surface for media-rich UIs.',
+  },
+  {
+    t: 'adaptiveTint',
+    d: 'Auto light/dark tint from the backdrop — try it over these varied tiles.',
+  },
+];
+
+/**
+ * Interactive sandbox: a glass bar pinned at the top of a SCROLLABLE column of
+ * photo cards, so real content scrolls under the glass while every prop stays
+ * live-editable from the Controls panel. Hover the glass to feel the elastic
+ * follow; `mouseContainer` scopes that tracking to the scroll stage.
+ */
+const PlaygroundStory = (args: LiquidGlassProps): ReactElement => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  return (
+    <div ref={scrollRef} className="lg-pg">
+      <style>{PLAYGROUND_CSS}</style>
+
+      <div className="lg-pg__bar">
+        <LiquidGlass {...args} mouseContainer={scrollRef} />
+      </div>
+
+      <div className="lg-pg__col">
+        {PLAYGROUND_CARDS.map((c, i) => (
+          <article key={c.t} className="lg-pg__card" style={{ background: photoTileBackground(i) }}>
+            <h3>{c.t}</h3>
+            <p>{c.d}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 /**
  * Drive every prop from the controls panel. Move `displacementScale`,
  * `aberrationIntensity` and `elasticity` while hovering the surface to feel the
- * refraction and elastic follow.
+ * refraction and elastic follow, and SCROLL the column to watch real content
+ * pass under the pinned glass.
  */
 export const Playground: Story = {
   args: {
     children: glassLabel('Liquid Glass'),
   },
+  parameters: {
+    layout: 'fullscreen',
+    // Supplies its own full-bleed scrollable stage — opt out of the centered
+    // global backdrop. Controls stay ENABLED here (this is the sandbox).
+    noBackdrop: true,
+    docs: {
+      description: {
+        story:
+          'The interactive sandbox. Every prop is editable from the Controls ' +
+          'panel below, and the glass is pinned over a SCROLLABLE column of ' +
+          'photo cards so you can scroll real content under it while you tweak.',
+      },
+    },
+  },
+  render: (args) => <PlaygroundStory {...args} />,
 };
 
 const MODES: readonly { mode: DisplacementMode; blurb: string }[] = [
