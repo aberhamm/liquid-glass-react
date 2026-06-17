@@ -1,7 +1,7 @@
 ---
 id: 019
 title: Regular vs Clear glass variant
-status: pending
+status: in-progress
 blocked-by: [018]
 priority:
 goal: apple-tier-liquid-glass-enhancements
