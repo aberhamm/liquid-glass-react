@@ -1,7 +1,7 @@
 ---
 id: 015
 title: Showcase overhaul — realistic content, draggable, scroll-under
-status: pending
+status: in-progress
 blocked-by: []
 priority:
 goal: apple-tier-liquid-glass-enhancements
