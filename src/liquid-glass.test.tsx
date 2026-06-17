@@ -1471,3 +1471,209 @@ describe('adaptiveTint: content-adaptive auto light/dark (plan 018)', () => {
     document.body.removeChild(container);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Plan 019 — Regular vs Clear material variant.
+// ---------------------------------------------------------------------------
+
+describe('variant: regular vs clear (plan 019)', () => {
+  /** Read the content layer. */
+  function getContent(container: HTMLElement): HTMLElement {
+    const el = container.querySelector<HTMLElement>('[data-lg-content]');
+    if (!el) throw new Error('content element not found');
+    return el;
+  }
+
+  /** Read the dimming-scrim layer (Clear only), or null when absent. */
+  function getScrim(container: HTMLElement): HTMLElement | null {
+    return container.querySelector<HTMLElement>('[data-lg-scrim]');
+  }
+
+  /** Pull the `saturate(N%)` value out of a backdrop-filter string. */
+  function saturationOf(surface: HTMLElement): number {
+    const m = styleOf(surface, 'backdropFilter').match(/saturate\(([\d.]+)%\)/);
+    return Number(m?.[1]);
+  }
+
+  it("defaults to 'regular' and renders byte-for-byte identical to today", () => {
+    const explicit = render(
+      <LiquidGlass variant="regular" saturation={140}>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const explicitSurface = getSurface(explicit.container);
+    const explicitBf = styleOf(explicitSurface, 'backdropFilter');
+    explicit.unmount();
+
+    const implicit = render(
+      <LiquidGlass saturation={140}>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const implicitSurface = getSurface(implicit.container);
+    // The default (omitted variant) and explicit 'regular' produce identical
+    // surface output, and there is NO dimming scrim on the regular path. The SVG
+    // filter id is per-render (useId), so normalize it out before comparing.
+    const normalizeId = (s: string): string => s.replace(/url\(#lg-[^)]+\)/, 'url(#lg-X)');
+    expect(normalizeId(styleOf(implicitSurface, 'backdropFilter'))).toBe(normalizeId(explicitBf));
+    expect(styleOf(implicitSurface, 'backdropFilter')).toMatch(/saturate\(140%\)/);
+    expect(getScrim(implicit.container)).toBeNull();
+    expect(getScrim(explicit.container)).toBeNull();
+  });
+
+  it("'clear' is MORE transparent: it lowers the backdrop saturation/tint", () => {
+    const regular = render(
+      <LiquidGlass variant="regular" saturation={140}>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const regularSat = saturationOf(getSurface(regular.container));
+    regular.unmount();
+
+    const clear = render(
+      <LiquidGlass variant="clear" saturation={140}>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const clearSat = saturationOf(getSurface(clear.container));
+
+    // Clear pulls the decorative saturation back vs regular (reduced tint).
+    expect(clearSat).toBeLessThan(regularSat);
+  });
+
+  it("'clear' adds a dimming scrim BEHIND the content (a content sibling, not on the surface)", () => {
+    const { container } = render(
+      <LiquidGlass variant="clear">
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const scrim = getScrim(container);
+    const content = getContent(container);
+    const surface = getSurface(container);
+
+    expect(scrim).not.toBeNull();
+    // It actually carries a fill and is decorative.
+    expect(scrim?.style.background).toMatch(/rgba\(/);
+    expect(scrim?.getAttribute('aria-hidden')).toBe('true');
+    expect(scrim?.style.pointerEvents).toBe('none');
+    // Layer isolation: the scrim is a SIBLING of both the content and the clipped
+    // glass surface — never inside the overflow:hidden surface, never wrapping
+    // the content.
+    expect(surface.contains(scrim as HTMLElement)).toBe(false);
+    expect((scrim as HTMLElement).contains(content)).toBe(false);
+    expect(scrim?.parentElement).toBe(content.parentElement);
+    // It sits behind the content (content is zIndex 1, scrim 0).
+    expect(content.style.zIndex).toBe('1');
+    expect(scrim?.style.zIndex).toBe('0');
+  });
+
+  it("'clear' force-disables adaptivity: adaptiveTint is a NO-OP (never samples, no ink flip)", () => {
+    setLuminance('light'); // a verdict is available, but Clear must ignore it
+    const { container } = render(
+      <LiquidGlass variant="clear" adaptiveTint>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    // The sampler hook is never invoked (AdaptiveTintLayer not mounted in Clear).
+    expect(mockLuminance).not.toHaveBeenCalled();
+    const surface = getSurface(container);
+    // No overLight-equivalent: blur stays at the 1px default (not bumped to 1.5).
+    expect(styleOf(surface, 'backdropFilter')).toMatch(/blur\(1px\)/);
+    // No adaptive ink flip on the content layer.
+    expect(getContent(container).style.color).toBe('');
+  });
+
+  it("'clear' + explicit overLight still nudges legibility but does NOT re-enable adaptivity", () => {
+    setLuminance('dark'); // would matter only if the adaptive path were active
+    const { container } = render(
+      <LiquidGlass variant="clear" adaptiveTint overLight>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    // overLight still tunes the surface (blur bumped) — a legibility nudge.
+    expect(styleOf(getSurface(container), 'backdropFilter')).toMatch(/blur\(1\.5px\)/);
+    // But adaptivity stays OFF: the sampler is never mounted/invoked.
+    expect(mockLuminance).not.toHaveBeenCalled();
+  });
+
+  it("'regular' + adaptiveTint keeps the plan-018 adaptive behavior (it samples and flips ink)", () => {
+    setLuminance('light');
+    const { container } = render(
+      <LiquidGlass variant="regular" adaptiveTint>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    // Regular leaves adaptiveTint intact: it samples and applies the light
+    // treatment (blur bumped, dark ink) exactly as plan 018.
+    expect(mockLuminance).toHaveBeenCalled();
+    expect(styleOf(getSurface(container), 'backdropFilter')).toMatch(/blur\(1\.5px\)/);
+    expect(getContent(container).style.color).toMatch(/17, 17, 20/);
+  });
+
+  it('prefers-contrast STILL forces high-contrast in BOTH variants (a11y wins over Clear)', () => {
+    installMatchMedia({ contrastMore: true });
+    for (const variant of ['regular', 'clear'] as const) {
+      mockCapabilities.mockReturnValue(caps(true));
+      const { container, unmount } = render(
+        <LiquidGlass variant={variant} saturation={200}>
+          <span>hi</span>
+        </LiquidGlass>,
+      );
+      const surface = getSurface(container);
+      // Solid contrast border ring + opaque fill present regardless of variant.
+      expect(surface.style.boxShadow).toMatch(/^inset 0(px)? 0(px)? 0(px)? 2px/);
+      expect(styleOf(surface, 'background')).toMatch(/rgba\(/);
+      // Saturation pinned to 100 (contrast wins over both the decorative boost
+      // AND the Clear saturation reduction).
+      expect(styleOf(surface, 'backdropFilter')).toMatch(/saturate\(100%\)/);
+      expect(styleOf(surface, 'backdropFilter')).not.toMatch(/saturate\(200%\)/);
+      unmount();
+    }
+  });
+
+  it('keeps IDENTICAL box geometry between regular and clear (geometry unchanged)', () => {
+    const geometryFor = (variant: 'regular' | 'clear'): Record<string, string> => {
+      const { container, unmount } = render(
+        <LiquidGlass variant={variant} padding="12px 20px" cornerRadius={28}>
+          <span>hi</span>
+        </LiquidGlass>,
+      );
+      const wrapper = container.firstElementChild as HTMLElement;
+      const geo = {
+        padding: wrapper.style.padding,
+        borderRadius: wrapper.style.borderRadius,
+        display: wrapper.style.display,
+      };
+      unmount();
+      return geo;
+    };
+    const regular = geometryFor('regular');
+    const clear = geometryFor('clear');
+    expect(regular.padding).toBe('12px 20px');
+    expect(regular.borderRadius).toBe('28px');
+    expect(clear).toEqual(regular);
+  });
+
+  it('renders without console.error / console.warn under both variants', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    for (const variant of ['regular', 'clear'] as const) {
+      for (const c of [caps(true), caps(false, true), caps(false, false)]) {
+        mockCapabilities.mockReturnValue(c);
+        const { unmount } = render(
+          <LiquidGlass variant={variant} adaptiveTint mode="standard">
+            <button type="button">Buy</button>
+          </LiquidGlass>,
+        );
+        act(() => {
+          fireEvent.mouseMove(document, { clientX: 200, clientY: 60 });
+        });
+        unmount();
+      }
+    }
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+});

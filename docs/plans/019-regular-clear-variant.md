@@ -1,13 +1,16 @@
 ---
 id: 019
 title: Regular vs Clear glass variant
-status: in-progress
+status: done
 blocked-by: [018]
 priority:
 goal: apple-tier-liquid-glass-enhancements
 allows-migrations: false
 needs-review: none
 created: 2026-06-16
+completed: 2026-06-17
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -101,3 +104,35 @@ Checks:
 - [assert] `grep -qiE "clear|regular" README.md && echo found` outputs `found`
 - [browse] start `pnpm storybook`, open the Variants story, confirm Clear is visibly more transparent than Regular over the photo while content stays legible; no console errors; stop the server
 - [manual] Clear ignores adaptiveTint; prefers-contrast still forces high contrast in both variants.
+
+## Implementation Notes
+
+Added `variant?: 'regular' | 'clear'` (default `'regular'`) to LiquidGlassProps
+as a 2-key parameter lookup (`VARIANT_PARAMS`) — not a theming system.
+`'regular'` is byte-for-byte unchanged (saturationFactor=1, no scrim,
+adaptiveTint intact per 018); `'clear'` lowers backdrop saturation/tint
+(factor 0.7 ⇒ more transparent) and force-disables adaptivity via a single
+`adaptiveActive = adaptiveTint && !forceNonAdaptive` gate feeding both the
+AdaptiveTintLayer mount and the `effectiveOverLight` precedence, so adaptiveTint
+is a no-op in Clear while `overLight` still nudges legibility. prefers-contrast
+(014) still wins in BOTH variants (contrast branch checked first for saturation
+and content ink). The dimming scrim is a proper content sibling
+(`<span data-lg-scrim>`, zIndex 0 below content's zIndex 1, sibling of the
+overflow:hidden surface — never on the clipped node), rendered only for Clear.
+`variant` passes through unchanged via the existing `glassProps` escape hatch on
+GlassButton/GlassCard/GlassSegmentedControl. The default 'regular' Showcase pixel
+baseline passed unchanged. `[browse]` ran: Variants story showed Clear at
+saturate(98%) + 1 scrim vs Regular at saturate(140%) + no scrim — visibly more
+transparent, content legible, zero console errors. No deviations.
+
+**Files changed:**
+
+- `src/types.ts` (modified)
+- `src/liquid-glass.tsx` (modified)
+- `src/liquid-glass.test.tsx` (modified)
+- `src/liquid-glass.stories.tsx` (modified — `Variants` story)
+- `src/index.ts` (modified)
+- `README.md` (modified)
+- `docs/PARITY.md` (modified)
+
+**Commit:** `2ffe1b4` — `feat(liquid-glass): regular vs clear variant`

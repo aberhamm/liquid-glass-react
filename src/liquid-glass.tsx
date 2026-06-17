@@ -205,6 +205,47 @@ const CONTENT_INK = {
   dark: 'rgba(17, 17, 20, 0.96)',
 } as const;
 
+// ---------------------------------------------------------------------------
+// Material variant resolver (plan 019)
+// ---------------------------------------------------------------------------
+
+/**
+ * Per-variant surface parameters (plan 019). A small parameter LOOKUP — NOT a
+ * theming system — that feeds the existing surface/content styles.
+ *
+ * - `'regular'` is a pure pass-through: `saturationFactor = 1`, no scrim, and
+ *   `forceNonAdaptive = false`, so the default render is byte-for-byte unchanged
+ *   and `adaptiveTint` keeps working exactly as in plan 018.
+ * - `'clear'` is permanently MORE transparent: the decorative backdrop saturation
+ *   is pulled back (`saturationFactor < 1` reduces the tint/vibrancy show-through)
+ *   and `forceNonAdaptive` hard-disables the adaptive sampling path. A subtle
+ *   dimming scrim is rendered as a CONTENT SIBLING (see the layer stack) so labels
+ *   stay legible over busy media without re-introducing adaptivity.
+ */
+const VARIANT_PARAMS = {
+  regular: {
+    /** Multiplier on the requested `saturation` (1 = unchanged). */
+    saturationFactor: 1,
+    /** Force the adaptive-tint path off regardless of `adaptiveTint`. */
+    forceNonAdaptive: false,
+    /** Scheme-aware dimming-scrim color behind the content, or `null` for none. */
+    scrim: null as { light: string; dark: string } | null,
+  },
+  clear: {
+    // Reduce the tint/vibrancy so the material reads as clearer (more of the
+    // backdrop shows through), per the Clear aesthetic.
+    saturationFactor: 0.7,
+    // Clear has NO adaptive behavior by definition — it never samples.
+    forceNonAdaptive: true,
+    // A subtle scheme-aware scrim so foreground labels stay readable over busy
+    // media even though the surface itself is more transparent.
+    scrim: {
+      light: 'rgba(0, 0, 0, 0.18)',
+      dark: 'rgba(0, 0, 0, 0.28)',
+    } as { light: string; dark: string } | null,
+  },
+} as const;
+
 function quantize(value: number): number {
   return Math.max(QUANT_GRID, Math.round(value / QUANT_GRID) * QUANT_GRID);
 }
@@ -527,6 +568,7 @@ export function LiquidGlass({
   padding = DEFAULTS.padding,
   overLight,
   adaptiveTint = false,
+  variant = 'regular',
   mode = DEFAULTS.mode,
   className,
   style,
@@ -620,6 +662,18 @@ export function LiquidGlass({
     };
   }, []);
 
+  // Material variant (plan 019). A small parameter lookup — NOT a theming system.
+  // `'regular'` is a pure pass-through (byte-for-byte unchanged); `'clear'` lowers
+  // tint, force-disables the adaptive path, and adds a dimming scrim sibling.
+  const variantParams = VARIANT_PARAMS[variant];
+
+  // Clear is NON-ADAPTIVE by definition: force the adaptive-tint path off even if
+  // `adaptiveTint` is set, so Clear never samples the backdrop and `adaptiveTint`
+  // is a documented no-op in Clear. `'regular'` leaves `adaptiveTint` untouched
+  // (plan 018 behavior intact). This single gate feeds BOTH the sampler-mount
+  // decision and the effective-tint precedence below.
+  const adaptiveActive = adaptiveTint && !variantParams.forceNonAdaptive;
+
   // Content-adaptive auto-tint precedence (plan 018). An EXPLICIT `overLight`
   // prop ALWAYS wins (the manual override); `adaptiveTint` only drives the
   // light/dark treatment when `overLight` is left undefined AND a backdrop scheme
@@ -627,8 +681,10 @@ export function LiquidGlass({
   // `false` (the default treatment), matching SSR / first paint so hydration
   // never mismatches. This computes an effective `overLight`-EQUIVALENT and feeds
   // the SAME existing tint/scale/blur plumbing below — no parallel tint system.
+  // In `'clear'` `adaptiveActive` is false, so this collapses to `overLight ??
+  // false`: `overLight` may still nudge legibility but never re-enables adaptivity.
   const effectiveOverLight =
-    overLight ?? (adaptiveTint && adaptiveScheme ? adaptiveScheme === 'light' : false);
+    overLight ?? (adaptiveActive && adaptiveScheme ? adaptiveScheme === 'light' : false);
 
   // overLight halves the effective displacement (parity spec) and the GlassFilter
   // / backdrop blur are adjusted for it.
@@ -639,7 +695,14 @@ export function LiquidGlass({
   // the chromatic aberration (which colors the refracted edges) is dropped to 0.
   // These are no-ops unless the live `(prefers-contrast: more)` hook is true, so
   // the default-off output is byte-for-byte unchanged.
-  const effectiveSaturation = prefersContrast ? CONTRAST_SATURATION : saturation;
+  // The Clear variant (plan 019) pulls the decorative saturation back so the
+  // material reads as clearer (more backdrop show-through). This is a no-op for
+  // `'regular'` (`saturationFactor === 1`). Increased contrast (014) STILL wins:
+  // when `prefersContrast` is true, saturation is pinned to 100 in BOTH variants
+  // — a11y beats the Clear aesthetic.
+  const effectiveSaturation = prefersContrast
+    ? CONTRAST_SATURATION
+    : saturation * variantParams.saturationFactor;
   const effectiveAberration = prefersContrast ? 0 : aberrationIntensity;
 
   const measured = dimensions !== null && dimensions.width > 0 && dimensions.height > 0;
@@ -891,11 +954,11 @@ export function LiquidGlass({
   // the opaque contrast fill's scheme (the OS color scheme) so the text contrasts
   // against THAT surface — auto-tint never undercuts the high-contrast treatment.
   let adaptiveContentColor: string | undefined;
-  if (adaptiveTint && prefersContrast) {
+  if (adaptiveActive && prefersContrast) {
     // Contrast wins: ink contrasts against the opaque contrast fill (OS scheme).
     // A light fill (light OS scheme) ⇒ DARK ink; a dark fill ⇒ LIGHT ink.
     adaptiveContentColor = scheme === 'light' ? CONTENT_INK.dark : CONTENT_INK.light;
-  } else if (adaptiveTint && adaptiveScheme) {
+  } else if (adaptiveActive && adaptiveScheme) {
     // Auto path: a LIGHT backdrop (effectiveOverLight) gets DARK ink, a DARK
     // backdrop gets LIGHT ink. Only set when a usable verdict was sampled — when
     // unsampled (taint / no-canvas / SSR) leave `color` unset so we fall back.
@@ -907,6 +970,33 @@ export function LiquidGlass({
     zIndex: 1,
     ...(adaptiveContentColor ? { color: adaptiveContentColor } : {}),
   };
+
+  // Dimming scrim (plan 019, Clear only). A subtle scheme-aware fill that sits
+  // BEHIND the content so labels stay legible over busy media even though the
+  // Clear surface itself is more transparent. It is a SIBLING of the content
+  // layer (a content-side decorative node), NOT a background on the clipped glass
+  // surface and NOT a box-shadow on the clipped node — following the established
+  // content/shadow layer-isolation rules (the surface keeps overflow:hidden; this
+  // scrim is its own positioned element so clipping never eats it). It is null /
+  // not rendered for `'regular'`, so the default render is unchanged. It tracks
+  // the elastic transform so it moves with the surface, and is aria-hidden +
+  // pointer-events:none decoration that never affects layout/geometry.
+  const scrimColor = variantParams.scrim ? variantParams.scrim[scheme] : null;
+  const scrimStyle: CSSProperties | null = scrimColor
+    ? {
+        position: 'absolute',
+        inset: 0,
+        borderRadius: radius,
+        transform: surfaceTransform,
+        transition: 'transform 120ms ease-out',
+        background: scrimColor,
+        // Above the surface/highlight/border layers (all zIndex 0) but strictly
+        // BELOW the content layer (zIndex 1), so it dims the backdrop for the
+        // content without veiling the content itself.
+        zIndex: 0,
+        pointerEvents: 'none',
+      }
+    : null;
 
   return (
     // onClick is a pass-through forwarded from the public API; the wrapper is a
@@ -954,12 +1044,20 @@ export function LiquidGlass({
       <span data-lg-press-glow="" style={pressGlowStyle} aria-hidden="true" />
       <span data-lg-border="" style={borderStyle} aria-hidden="true" />
 
+      {/* Dimming scrim (plan 019, Clear variant only): a subtle sibling layer
+          BEHIND the content so labels stay legible over busy media. Rendered only
+          when the resolved variant supplies a scrim color, so `'regular'` is
+          unchanged. Decorative (aria-hidden, pointer-events:none). */}
+      {scrimStyle ? <span data-lg-scrim="" style={scrimStyle} aria-hidden="true" /> : null}
+
       {/* Content-adaptive auto-tint sampler (plan 018): renders nothing, mounted
-          ONLY when `adaptiveTint` is enabled so the default path never samples
-          and the hook is never called conditionally. It samples the backdrop in
-          a post-mount effect and lifts the scheme up via setAdaptiveScheme (a
-          stable setter), driving `effectiveOverLight` above. */}
-      {adaptiveTint ? (
+          ONLY when the adaptive path is active so the default path never samples
+          and the hook is never called conditionally. The Clear variant (plan 019)
+          force-disables this path (`adaptiveActive` is false), so Clear never
+          samples and `adaptiveTint` is a documented no-op in Clear. It samples the
+          backdrop in a post-mount effect and lifts the scheme up via
+          setAdaptiveScheme (a stable setter), driving `effectiveOverLight` above. */}
+      {adaptiveActive ? (
         <AdaptiveTintLayer targetRef={wrapperRef} onScheme={setAdaptiveScheme} />
       ) : null}
 

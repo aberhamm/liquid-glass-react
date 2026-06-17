@@ -24,6 +24,24 @@ import type { CSSProperties, MouseEventHandler, ReactNode, RefObject } from 'rea
 export type DisplacementMode = 'standard' | 'polar' | 'prominent' | 'shader' | 'turbulence';
 
 /**
+ * The two Liquid Glass material variants Apple distinguishes — selected with one
+ * intentional prop instead of hand-tuning opacity.
+ *
+ * - `regular` — the dependable, fully adaptive control surface. Exactly the
+ *   current behavior, including content-adaptive auto-tint when
+ *   {@link LiquidGlassProps.adaptiveTint} is enabled.
+ * - `clear` — a permanently MORE transparent material for media-rich contexts
+ *   (e.g. floating over a photo). It is **non-adaptive by definition**:
+ *   {@link LiquidGlassProps.adaptiveTint} is force-disabled, and an optional
+ *   dimming scrim sits behind the content so labels stay legible over busy media.
+ *
+ * Apple's guidance is that the two **should never be mixed** in the same context.
+ *
+ * @defaultValue `'regular'`
+ */
+export type GlassVariant = 'regular' | 'clear';
+
+/**
  * A 2D pointer position in CSS pixels, used for mouse-driven motion/elasticity.
  *
  * Coordinates are interpreted relative to whatever container the consumer wires
@@ -218,6 +236,38 @@ export interface LiquidGlassProps {
    * @defaultValue `false`
    */
   adaptiveTint?: boolean;
+
+  /**
+   * The Liquid Glass material variant. See {@link GlassVariant}.
+   *
+   * - `'regular'` (default) — EXACTLY the current behavior, including
+   *   content-adaptive auto-tint when {@link adaptiveTint} is enabled. The
+   *   dependable, fully adaptive control surface.
+   * - `'clear'` — a permanently MORE transparent surface (lower fill opacity /
+   *   reduced tint) for media-rich contexts, with an optional dimming scrim
+   *   behind the content so labels stay legible over busy media. Geometry is
+   *   unchanged from `'regular'`.
+   *
+   * ## Interaction rules
+   *
+   * - **Clear is non-adaptive by definition.** In `'clear'`, {@link adaptiveTint}
+   *   is a **no-op** — the glass never samples the backdrop and never flips its
+   *   tint/ink. (Use `'regular'` + `adaptiveTint` for the adaptive material.)
+   * - **`overLight` still nudges legibility, not adaptivity.** In `'clear'`, an
+   *   explicit {@link overLight} may still tune the dimming/legibility treatment,
+   *   but it does NOT re-enable the adaptive sampling path.
+   * - **Accessibility wins.** Under `(prefers-contrast: more)` (plan 014) the
+   *   high-contrast treatment STILL applies in both variants — a11y beats the
+   *   Clear aesthetic, so Clear surfaces become legible/high-contrast when the
+   *   user asks for it.
+   *
+   * Per Apple's guidance, the two variants **should never be mixed** in the same
+   * context. This is ADDITIVE and non-breaking: omitting it keeps today's
+   * behavior exactly.
+   *
+   * @defaultValue `'regular'`
+   */
+  variant?: GlassVariant;
 
   /**
    * Which displacement algorithm to use. See {@link DisplacementMode}.

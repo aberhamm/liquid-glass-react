@@ -280,6 +280,56 @@ legibility treatment.
 
 ---
 
+## Material variants: Regular vs Clear (`variant`)
+
+Apple distinguishes two Liquid Glass materials, and `variant` lets you pick one
+intentionally instead of hand-tuning opacity:
+
+- **`regular`** (default) — the dependable, fully adaptive control surface. This
+  is **exactly** today's behavior, including content-adaptive auto-tint when
+  [`adaptiveTint`](#content-adaptive-auto-tint-adaptivetint) is on.
+- **`clear`** — a permanently **more transparent** material for media-rich
+  contexts (floating over a photo or video). It is **non-adaptive by
+  definition**, with a subtle dimming scrim behind the content so labels stay
+  legible over busy media.
+
+```tsx
+// Dependable control surface (default).
+<LiquidGlass variant="regular">
+  <span>Toolbar</span>
+</LiquidGlass>
+
+// Maximally transparent over media — clearer, with a legibility scrim.
+<LiquidGlass variant="clear">
+  <span>Over a photo</span>
+</LiquidGlass>
+```
+
+It is **additive and non-breaking**: `variant` defaults to `'regular'`, so
+omitting it keeps today's render byte-for-byte unchanged. It is a small parameter
+lookup feeding the existing surface/content styles — not a theming system.
+
+**Don't mix — Clear is non-adaptive.** Per Apple's guidance the two should never
+be mixed in the same context. In `'clear'`:
+
+- **`adaptiveTint` is a no-op** — Clear never samples the backdrop or flips its
+  tint/ink. (Use `'regular'` + `adaptiveTint` for the adaptive material.)
+- **`overLight` still nudges legibility**, but does NOT re-enable adaptivity.
+
+**Accessibility wins in both variants.** Under `(prefers-contrast: more)` the
+increased-contrast treatment (solid border, opaque fill, pinned saturation)
+applies to Clear too — a11y beats the Clear aesthetic.
+
+The prebuilt components (`GlassButton`, `GlassCard`, `GlassSegmentedControl`)
+take `variant` through their `glassProps` escape hatch — no new per-component
+prop:
+
+```tsx
+<GlassButton glassProps={{ variant: 'clear' }}>Over media</GlassButton>
+```
+
+---
+
 ## API reference
 
 ### `<LiquidGlass>` (primitive)
@@ -296,6 +346,7 @@ legibility treatment.
 | `padding` | `number \| string` | `'24px 32px'` | Inner padding. Number = px; string = CSS shorthand. |
 | `overLight` | `boolean` | `false` | Hint that the glass sits over a light background; tunes tint/contrast. The manual override — always wins over `adaptiveTint`. |
 | `adaptiveTint` | `boolean` | `false` | Opt into content-adaptive auto-tint: samples the backdrop and auto-shifts light/dark for legibility (see [Content-adaptive auto-tint](#content-adaptive-auto-tint-adaptivetint)). |
+| `variant` | `'regular' \| 'clear'` | `'regular'` | Material variant. `regular` = today's fully adaptive surface; `clear` is permanently more transparent and non-adaptive (`adaptiveTint` is a no-op) with a dimming scrim (see [Material variants](#material-variants-regular-vs-clear-variant)). |
 | `mode` | `DisplacementMode` | `'standard'` | Displacement algorithm (see [Displacement `mode`](#displacement-mode)). |
 | `className` | `string` | — | Class name(s) on the outermost glass element. |
 | `style` | `CSSProperties` | — | Inline styles merged onto the outermost element. |

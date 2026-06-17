@@ -23,6 +23,7 @@ are the contract documented in `src/types.ts`.
 | `padding`             | `number \| string`                              | `'24px'`      | `padding`           | Number = px; string = CSS shorthand. |
 | `overLight`           | `boolean`                                       | `false`       | `overLight`         | Tunes tint for light backgrounds; manual override (wins over `adaptiveTint`). |
 | `adaptiveTint`        | `boolean`                                       | `false`       | — (new, plan 018)   | Auto light/dark tint sampled from the backdrop (see Content-adaptive auto-tint). |
+| `variant`             | `'regular' \| 'clear'`                          | `'regular'`   | — (new, plan 019)   | Material variant. `regular` = current behavior; `clear` is permanently more transparent and non-adaptive (see Material variants). |
 | `mode`                | `DisplacementMode`                              | `'standard'`  | `mode`              | `standard \| polar \| prominent \| shader \| turbulence`. |
 | `className`           | `string`                                        | —             | `className`         | Applied to the outer element. |
 | `style`               | `CSSProperties`                                 | —             | `style`             | Merged onto the outer element. |
@@ -163,6 +164,46 @@ hooks are respected — the hook is never called conditionally).
 | **Graceful degradation** | When the backdrop can't be sampled (cross-origin taint, no canvas, SSR) the reading is `sampled: false` and auto-tint falls back to `overLight ?? false` — no error, no flicker loop, no `console.error`. |
 | **prefers-contrast (014)** | Increased contrast WINS on legibility: auto-tint never undercuts the high-contrast surface/border/ink treatment. |
 | **Limitation** | Best-effort legibility. Critical text over unknown / cross-origin backdrops (unsampleable) should be verified manually. |
+
+## Material variants: Regular vs Clear (plan 019)
+
+Apple distinguishes two Liquid Glass materials: **Regular** (fully adaptive,
+legible over anything) and **Clear** (permanently more transparent for
+media-rich contexts, with NO adaptive behavior and a dimming layer for
+legibility). Apple's guidance is that the two **should never be mixed** in the
+same context. The `variant` prop encodes this as one intentional choice instead
+of hand-tuning opacity.
+
+This is **additive and non-breaking**: `variant` defaults to `'regular'`, which
+is **exactly** today's behavior (byte-for-byte), so the committed Showcase pixel
+baseline is unchanged. It is implemented as a small parameter **lookup** feeding
+the existing surface/content styles — **not a theming system** and not a second
+tint path.
+
+| Variant | Surface transparency / tint | Adaptive tint (`adaptiveTint`) | Dimming scrim | Box geometry |
+| ------- | --------------------------- | ------------------------------ | ------------- | ------------ |
+| **`regular`** (default) | Per the `saturation` prop (unchanged). | Honored — when `adaptiveTint` is on, the glass samples the backdrop and shifts light/dark exactly as plan 018. | none | unchanged |
+| **`clear`** | **More transparent** — the decorative backdrop saturation/tint is pulled back so more of the backdrop shows through. | **Force-disabled (no-op).** Clear is non-adaptive **by definition**: it never samples and never flips its tint/ink, even if `adaptiveTint` is set. | a subtle scheme-aware scrim rendered as a **content sibling** (behind the content, never on the clipped glass surface) so labels stay legible over busy media | identical (no layout shift) |
+
+**Interaction rules (documented + tested):**
+
+- **Clear + `adaptiveTint` ⇒ no-op.** In `'clear'` the adaptive sampler is never
+  mounted, so `adaptiveTint` has no effect. Use `'regular'` + `adaptiveTint` for
+  the adaptive material. (Don't mix.)
+- **`overLight` still nudges legibility, not adaptivity.** In `'clear'` an
+  explicit `overLight` may still tune the surface (e.g. blur for legibility) but
+  does NOT re-enable the adaptive path.
+- **`prefers-contrast: more` (014) still wins in BOTH variants.** Accessibility
+  beats the Clear aesthetic: under increased contrast the solid border, opaque
+  fill, pinned 100% saturation and dropped aberration apply to Clear too, so
+  Clear surfaces become legible/high-contrast when the user asks for it.
+
+The dimming scrim follows the established **content/shadow layer-isolation
+rules**: it is a separate positioned sibling of the content layer (and of the
+`overflow:hidden` glass surface), never a `background` on the clipped surface and
+never a `box-shadow` on the clipped node — so clipping never eats it. It sits
+above the surface/highlight/border layers but strictly below the content. No path
+emits `console.error` / `console.warn` in either variant.
 
 ## Capability detection
 

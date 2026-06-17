@@ -95,6 +95,16 @@ const meta = {
         'and contrast for legibility.',
       table: { category: 'Appearance', defaultValue: { summary: 'false' } },
     },
+    variant: {
+      control: 'inline-radio',
+      options: ['regular', 'clear'],
+      description:
+        'Material variant. "regular" (default) is the fully adaptive control ' +
+        'surface; "clear" is permanently more transparent for media-rich ' +
+        'contexts and is non-adaptive (adaptiveTint is a no-op), with a dimming ' +
+        'scrim for legibility. The two should never be mixed.',
+      table: { category: 'Appearance', defaultValue: { summary: "'regular'" } },
+    },
     mode: {
       control: 'select',
       options: ['standard', 'polar', 'prominent', 'shader', 'turbulence'],
@@ -121,6 +131,7 @@ const meta = {
     cornerRadius: 32,
     padding: '24px 32px',
     overLight: false,
+    variant: 'regular',
     mode: 'standard',
   },
 } satisfies Meta<typeof LiquidGlass>;
@@ -901,6 +912,140 @@ const ADAPTIVE_CSS = `
   opacity: 0.7;
 }
 .lg-adaptive__body {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  opacity: 0.92;
+}
+`;
+
+/**
+ * Regular vs Clear material variant (plan 019). Apple distinguishes two Liquid
+ * Glass materials: `'regular'` (the default — a dependable, fully adaptive
+ * control surface) and `'clear'` (permanently MORE transparent for media-rich
+ * contexts, with NO adaptive behavior and a subtle dimming scrim so labels stay
+ * legible over busy media). Two identical cards sit side by side over the SAME
+ * same-origin demo photo so the difference is obvious: the Clear card lets more
+ * of the photo show through while its label stays readable. Per Apple's
+ * guidance the two should never be mixed in the same context.
+ */
+export const Variants: Story = {
+  args: { children: null },
+  parameters: {
+    layout: 'fullscreen',
+    noBackdrop: true,
+    docs: {
+      description: {
+        story:
+          'Regular vs Clear over the same photo. `variant="clear"` is permanently ' +
+          'more transparent (lower tint) for media-rich contexts and is ' +
+          'NON-ADAPTIVE by definition — `adaptiveTint` is a no-op in Clear — while ' +
+          'a dimming scrim keeps labels legible. `variant="regular"` (default) is ' +
+          'unchanged. The two should never be mixed in the same context.',
+      },
+    },
+  },
+  render: () => (
+    <div className="lg-variants">
+      <style>{VARIANTS_CSS}</style>
+      <div className="lg-variants__photo" />
+
+      <div className="lg-variants__row">
+        <figure className="lg-variants__cell">
+          <LiquidGlass
+            variant="regular"
+            cornerRadius={24}
+            padding="28px 32px"
+            displacementScale={80}
+          >
+            <div style={{ color: '#fff', maxWidth: '15rem', pointerEvents: 'none' }}>
+              <p className="lg-variants__eyebrow">Regular</p>
+              <strong style={{ fontSize: '1.15rem' }}>Dependable control surface</strong>
+              <p className="lg-variants__body">
+                The default material — fully adaptive, legible over anything.
+              </p>
+            </div>
+          </LiquidGlass>
+          <figcaption className="lg-variants__cap">
+            <strong>variant="regular"</strong>
+            <span>Today's behavior, unchanged. Pairs with adaptiveTint.</span>
+          </figcaption>
+        </figure>
+
+        <figure className="lg-variants__cell">
+          <LiquidGlass variant="clear" cornerRadius={24} padding="28px 32px" displacementScale={80}>
+            <div style={{ color: '#fff', maxWidth: '15rem', pointerEvents: 'none' }}>
+              <p className="lg-variants__eyebrow">Clear</p>
+              <strong style={{ fontSize: '1.15rem' }}>More transparent over media</strong>
+              <p className="lg-variants__body">
+                More of the photo shows through; a dimming scrim keeps text legible.
+              </p>
+            </div>
+          </LiquidGlass>
+          <figcaption className="lg-variants__cap">
+            <strong>variant="clear"</strong>
+            <span>Permanently clearer. Non-adaptive by definition.</span>
+          </figcaption>
+        </figure>
+      </div>
+    </div>
+  ),
+};
+
+const VARIANTS_CSS = `
+.lg-variants {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 1.5rem;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #0c1024;
+  font-family: system-ui, sans-serif;
+}
+.lg-variants__photo {
+  position: absolute;
+  inset: 0;
+  background: center / cover no-repeat url("${DEMO_PHOTO_URL}");
+}
+.lg-variants__row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4rem;
+  align-items: flex-start;
+  justify-content: center;
+}
+.lg-variants__cell {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+}
+.lg-variants__cap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  text-align: center;
+  color: #fff;
+  max-width: 18rem;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+}
+.lg-variants__cap strong { font-size: 0.95rem; }
+.lg-variants__cap span { font-size: 0.85rem; opacity: 0.9; }
+.lg-variants__eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+.lg-variants__body {
   margin: 0.4rem 0 0;
   font-size: 0.85rem;
   line-height: 1.45;

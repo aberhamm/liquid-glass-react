@@ -11,6 +11,7 @@ export const VERSION = '0.0.0';
 export type {
   DisplacementMode,
   GlassCapabilities,
+  GlassVariant,
   LiquidGlassProps,
   MousePos,
 } from './types';
