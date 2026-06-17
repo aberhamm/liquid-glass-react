@@ -1,0 +1,16 @@
+<!--
+  Global preview typography. Storybook injects this into the <head> of the
+  preview iframe for EVERY story, so the base font is the clean system
+  sans-serif and nothing can fall back to the browser default serif (Times) —
+  including unwrapped text, the autodocs canvases, and any story that forgets to
+  set its own font. Keep this stack in sync with SANS_FONT in
+  src/photos-app-backdrop.tsx.
+-->
+<style>
+  html,
+  body,
+  #storybook-root,
+  #storybook-docs {
+    font-family: -apple-system, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+</style>

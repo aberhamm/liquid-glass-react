@@ -224,16 +224,15 @@ const PLAYGROUND_CARDS = [
  * Interactive sandbox: a glass bar pinned at the top of a SCROLLABLE column of
  * photo cards, so real content scrolls under the glass while every prop stays
  * live-editable from the Controls panel. Hover the glass to feel the elastic
- * follow; `mouseContainer` scopes that tracking to the scroll stage.
+ * follow (tracking the global pointer, like a consumer's default usage).
  */
 const PlaygroundStory = (args: LiquidGlassProps): ReactElement => {
-  const scrollRef = useRef<HTMLDivElement>(null);
   return (
-    <div ref={scrollRef} className="lg-pg">
+    <div className="lg-pg">
       <style>{PLAYGROUND_CSS}</style>
 
       <div className="lg-pg__bar">
-        <LiquidGlass {...args} mouseContainer={scrollRef} />
+        <LiquidGlass {...args} />
       </div>
 
       <div className="lg-pg__col">
