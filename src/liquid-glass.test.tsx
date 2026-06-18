@@ -151,6 +151,25 @@ function styleOf(el: HTMLElement, key: string): string {
   return typeof v === 'string' ? v : '';
 }
 
+/**
+ * On the TIER 1 (canRefract / url) path, blur + saturation live as the FINAL
+ * two primitives of the SVG `<filter>` (Chrome drops a CSS blur()/saturate()
+ * that trails a url() filter). The blur is the `feGaussianBlur` that consumes
+ * `in="refracted"`; the saturation is the trailing `type="saturate"`
+ * `feColorMatrix` (the filter output, no `result`). These helpers read them.
+ */
+function filterBlurPx(container: HTMLElement): number | null {
+  const blur = container.querySelector('feGaussianBlur[in="refracted"]');
+  if (!blur) return null;
+  return Number(blur.getAttribute('stdDeviation'));
+}
+
+function filterSaturatePercent(container: HTMLElement): number | null {
+  const cm = container.querySelector('feColorMatrix[type="saturate"]');
+  if (!cm) return null;
+  return Number(cm.getAttribute('values')) * 100;
+}
+
 describe('<LiquidGlass> rendering', () => {
   it('renders its children', () => {
     const { getByText } = render(
@@ -333,27 +352,33 @@ describe('chromatic aberration scaling', () => {
 });
 
 describe('backdrop-filter composition', () => {
-  it('reflects saturation and blur in the backdrop-filter string', () => {
+  it('reflects saturation and blur in the SVG filter on the canRefract (url) path', () => {
+    // TIER 1 (canRefract): Chrome DROPS a CSS blur()/saturate() trailing a url()
+    // filter, so the backdrop-filter string is JUST url(#id) and the blur +
+    // saturation are folded into the SVG filter's final primitives instead.
     const { container } = render(
       <LiquidGlass saturation={200} blurAmount={0.5}>
         <span>hi</span>
       </LiquidGlass>,
     );
     const value = getSurface(container).style.backdropFilter;
-    expect(value).toMatch(/saturate\(200%\)/);
+    // url alone — no CSS blur/saturate (they'd be silently dropped by Chrome).
+    expect(value).toMatch(/url\(#lg-[^)]+\)/);
+    expect(value).not.toMatch(/blur\(/);
+    expect(value).not.toMatch(/saturate\(/);
+    // The values now feed the SVG filter primitives.
+    expect(filterSaturatePercent(container)).toBe(200);
     // 0.5 * 16 = 8px (overLight false => no extra multiplier).
-    expect(value).toMatch(/blur\(8px\)/);
+    expect(filterBlurPx(container)).toBe(8);
   });
 
-  it('increases blur when overLight is true', () => {
+  it('increases the SVG filter blur when overLight is true (url path)', () => {
     const base = render(
       <LiquidGlass blurAmount={0.5} overLight={false}>
         <span>hi</span>
       </LiquidGlass>,
     );
-    const baseBlur = base.container
-      .querySelector<HTMLElement>('[data-lg-surface]')
-      ?.style.backdropFilter.match(/blur\(([\d.]+)px\)/)?.[1];
+    const baseBlur = filterBlurPx(base.container);
     base.unmount();
 
     const lit = render(
@@ -361,9 +386,7 @@ describe('backdrop-filter composition', () => {
         <span>hi</span>
       </LiquidGlass>,
     );
-    const litBlur = lit.container
-      .querySelector<HTMLElement>('[data-lg-surface]')
-      ?.style.backdropFilter.match(/blur\(([\d.]+)px\)/)?.[1];
+    const litBlur = filterBlurPx(lit.container);
 
     expect(Number(litBlur)).toBeGreaterThan(Number(baseBlur));
   });
@@ -588,9 +611,13 @@ describe('graceful degradation — capability matrix (plan 006)', () => {
     const surface = getSurface(container);
     const bf = styleOf(surface, 'backdropFilter');
     expect(bf).toMatch(/url\(#lg-[^)]+\)/);
-    expect(bf).toMatch(/blur\(/);
-    expect(bf).toMatch(/saturate\(/);
+    // Blur + saturate are NOT in the CSS string on this tier (Chrome would drop
+    // them after the url()); they live inside the SVG filter instead.
+    expect(bf).not.toMatch(/blur\(/);
+    expect(bf).not.toMatch(/saturate\(/);
     expect(container.querySelector('filter')).not.toBeNull();
+    expect(filterBlurPx(container)).not.toBeNull();
+    expect(filterSaturatePercent(container)).not.toBeNull();
     // Solid fallback fill is NOT used when the backdrop carries the look.
     expect(styleOf(surface, 'background')).toBe('');
   });
@@ -918,7 +945,9 @@ describe('prefers-contrast: more (plan 014)', () => {
     expect(bg).toMatch(/rgba\(/);
     expect(bg).not.toBe('');
     // The blur is retained — this is a fill layered over it, not a tier change.
-    expect(styleOf(surface, 'backdropFilter')).toMatch(/blur\(/);
+    // On the canRefract (url) tier the blur lives in the SVG filter, not CSS.
+    expect(styleOf(surface, 'backdropFilter')).toMatch(/url\(#/);
+    expect(filterBlurPx(container)).toBeGreaterThan(0);
   });
 
   it('pins backdrop saturation to 100% (no decorative vibrancy boost) when on', () => {
@@ -929,9 +958,9 @@ describe('prefers-contrast: more (plan 014)', () => {
         <span>hi</span>
       </LiquidGlass>,
     );
-    const bf = styleOf(getSurface(container), 'backdropFilter');
-    expect(bf).toMatch(/saturate\(100%\)/);
-    expect(bf).not.toMatch(/saturate\(200%\)/);
+    // On the canRefract (url) tier saturation lives in the SVG filter, not CSS.
+    expect(filterSaturatePercent(container)).toBe(100);
+    expect(filterSaturatePercent(container)).not.toBe(200);
   });
 
   it('drops chromatic aberration (spread collapses) when contrast is on', () => {
@@ -1003,9 +1032,10 @@ describe('prefers-contrast: more (plan 014)', () => {
     );
     const surface = getSurface(container);
     const bf = styleOf(surface, 'backdropFilter');
-    // Refraction present, decorative saturation honored, no extra fill, no ring.
+    // Refraction present, decorative saturation honored (in the SVG filter on
+    // the url tier), no extra fill, no ring.
     expect(bf).toMatch(/url\(#lg-[^)]+\)/);
-    expect(bf).toMatch(/saturate\(200%\)/);
+    expect(filterSaturatePercent(container)).toBe(200);
     expect(styleOf(surface, 'background')).toBe('');
     expect(surface.style.boxShadow).not.toMatch(/^inset 0(px)? 0(px)? 0(px)? 2px/);
   });
@@ -1316,8 +1346,10 @@ describe('adaptiveTint: content-adaptive auto light/dark (plan 018)', () => {
     expect(mockLuminance).not.toHaveBeenCalled();
     const surface = getSurface(container);
     // Default (overLight-off) treatment: blur not bumped, full saturation honored.
-    expect(styleOf(surface, 'backdropFilter')).toMatch(/blur\(1px\)/);
-    expect(styleOf(surface, 'backdropFilter')).toMatch(/saturate\(200%\)/);
+    // On the canRefract (url) tier these live in the SVG filter, not the CSS.
+    expect(styleOf(surface, 'backdropFilter')).toMatch(/url\(#/);
+    expect(filterBlurPx(container)).toBe(1);
+    expect(filterSaturatePercent(container)).toBe(200);
     // No adaptive foreground color set on the content layer.
     expect(getContent(container).style.color).toBe('');
   });
@@ -1329,9 +1361,8 @@ describe('adaptiveTint: content-adaptive auto light/dark (plan 018)', () => {
         <span>hi</span>
       </LiquidGlass>,
     );
-    const surface = getSurface(container);
-    // overLight-equivalent bumps the backdrop blur 1px → 1.5px.
-    expect(styleOf(surface, 'backdropFilter')).toMatch(/blur\(1\.5px\)/);
+    // overLight-equivalent bumps the (SVG-filter) backdrop blur 1px → 1.5px.
+    expect(filterBlurPx(container)).toBe(1.5);
     // Content ink flips DARK over a light backdrop for legibility.
     expect(getContent(container).style.color).toMatch(/17, 17, 20/);
   });
@@ -1343,9 +1374,9 @@ describe('adaptiveTint: content-adaptive auto light/dark (plan 018)', () => {
         <span>hi</span>
       </LiquidGlass>,
     );
-    const surface = getSurface(container);
-    // Dark backdrop ⇒ effectiveOverLight false ⇒ blur stays at the 1px default.
-    expect(styleOf(surface, 'backdropFilter')).toMatch(/blur\(1px\)/);
+    // Dark backdrop ⇒ effectiveOverLight false ⇒ blur stays at the 1px default
+    // (in the SVG filter on the url tier).
+    expect(filterBlurPx(container)).toBe(1);
     // Content ink flips LIGHT over a dark backdrop.
     expect(getContent(container).style.color).toMatch(/255, 255, 255/);
   });
@@ -1358,8 +1389,8 @@ describe('adaptiveTint: content-adaptive auto light/dark (plan 018)', () => {
         <span>hi</span>
       </LiquidGlass>,
     );
-    // overLight=true ⇒ light treatment despite the dark sample.
-    expect(styleOf(getSurface(container), 'backdropFilter')).toMatch(/blur\(1\.5px\)/);
+    // overLight=true ⇒ light treatment despite the dark sample (SVG-filter blur).
+    expect(filterBlurPx(container)).toBe(1.5);
   });
 
   it('PRECEDENCE: explicit overLight={false} also wins (auto cannot flip it on)', () => {
@@ -1370,7 +1401,7 @@ describe('adaptiveTint: content-adaptive auto light/dark (plan 018)', () => {
       </LiquidGlass>,
     );
     // overLight=false short-circuits ⇒ default treatment despite the light sample.
-    expect(styleOf(getSurface(container), 'backdropFilter')).toMatch(/blur\(1px\)/);
+    expect(filterBlurPx(container)).toBe(1);
   });
 
   it('GRACEFUL DEGRADATION: sampled:false falls back to the default treatment', () => {
@@ -1381,9 +1412,8 @@ describe('adaptiveTint: content-adaptive auto light/dark (plan 018)', () => {
         <span>hi</span>
       </LiquidGlass>,
     );
-    const surface = getSurface(container);
-    // Falls back to overLight ?? false ⇒ default blur, no adaptive ink.
-    expect(styleOf(surface, 'backdropFilter')).toMatch(/blur\(1px\)/);
+    // Falls back to overLight ?? false ⇒ default blur (SVG filter), no adaptive ink.
+    expect(filterBlurPx(container)).toBe(1);
     expect(getContent(container).style.color).toBe('');
     expect(errorSpy).not.toHaveBeenCalled();
   });
@@ -1403,8 +1433,9 @@ describe('adaptiveTint: content-adaptive auto light/dark (plan 018)', () => {
     // The increased-contrast treatment is intact (solid border + opaque fill).
     expect(surface.style.boxShadow).toMatch(/^inset 0(px)? 0(px)? 0(px)? 2px/);
     expect(styleOf(surface, 'background')).toMatch(/rgba\(/);
-    // Saturation still pinned to 100 (contrast), not the decorative boost.
-    expect(styleOf(surface, 'backdropFilter')).toMatch(/saturate\(100%\)/);
+    // Saturation still pinned to 100 (contrast), not the decorative boost
+    // (in the SVG filter on the url tier).
+    expect(filterSaturatePercent(container)).toBe(100);
   });
 
   it('renders without console.error / console.warn under adaptiveTint (light + dark)', () => {
@@ -1489,9 +1520,15 @@ describe('variant: regular vs clear (plan 019)', () => {
     return container.querySelector<HTMLElement>('[data-lg-scrim]');
   }
 
-  /** Pull the `saturate(N%)` value out of a backdrop-filter string. */
-  function saturationOf(surface: HTMLElement): number {
-    const m = styleOf(surface, 'backdropFilter').match(/saturate\(([\d.]+)%\)/);
+  /**
+   * Pull the effective saturation percent. On the canRefract (url) tier this
+   * lives in the SVG filter's trailing `feColorMatrix type="saturate"`; on the
+   * fallback tiers it is in the CSS `saturate(N%)` backdrop-filter term.
+   */
+  function saturationOf(container: HTMLElement): number {
+    const svg = filterSaturatePercent(container);
+    if (svg !== null) return svg;
+    const m = styleOf(getSurface(container), 'backdropFilter').match(/saturate\(([\d.]+)%\)/);
     return Number(m?.[1]);
   }
 
@@ -1516,7 +1553,8 @@ describe('variant: regular vs clear (plan 019)', () => {
     // filter id is per-render (useId), so normalize it out before comparing.
     const normalizeId = (s: string): string => s.replace(/url\(#lg-[^)]+\)/, 'url(#lg-X)');
     expect(normalizeId(styleOf(implicitSurface, 'backdropFilter'))).toBe(normalizeId(explicitBf));
-    expect(styleOf(implicitSurface, 'backdropFilter')).toMatch(/saturate\(140%\)/);
+    // Decorative saturation honored (in the SVG filter on the url tier).
+    expect(saturationOf(implicit.container)).toBe(140);
     expect(getScrim(implicit.container)).toBeNull();
     expect(getScrim(explicit.container)).toBeNull();
   });
@@ -1527,7 +1565,7 @@ describe('variant: regular vs clear (plan 019)', () => {
         <span>hi</span>
       </LiquidGlass>,
     );
-    const regularSat = saturationOf(getSurface(regular.container));
+    const regularSat = saturationOf(regular.container);
     regular.unmount();
 
     const clear = render(
@@ -1535,7 +1573,7 @@ describe('variant: regular vs clear (plan 019)', () => {
         <span>hi</span>
       </LiquidGlass>,
     );
-    const clearSat = saturationOf(getSurface(clear.container));
+    const clearSat = saturationOf(clear.container);
 
     // Clear pulls the decorative saturation back vs regular (reduced tint).
     expect(clearSat).toBeLessThan(regularSat);
@@ -1576,9 +1614,9 @@ describe('variant: regular vs clear (plan 019)', () => {
     );
     // The sampler hook is never invoked (AdaptiveTintLayer not mounted in Clear).
     expect(mockLuminance).not.toHaveBeenCalled();
-    const surface = getSurface(container);
-    // No overLight-equivalent: blur stays at the 1px default (not bumped to 1.5).
-    expect(styleOf(surface, 'backdropFilter')).toMatch(/blur\(1px\)/);
+    // No overLight-equivalent: blur stays at the 1px default (not bumped to 1.5)
+    // — in the SVG filter on the url tier.
+    expect(filterBlurPx(container)).toBe(1);
     // No adaptive ink flip on the content layer.
     expect(getContent(container).style.color).toBe('');
   });
@@ -1590,8 +1628,8 @@ describe('variant: regular vs clear (plan 019)', () => {
         <span>hi</span>
       </LiquidGlass>,
     );
-    // overLight still tunes the surface (blur bumped) — a legibility nudge.
-    expect(styleOf(getSurface(container), 'backdropFilter')).toMatch(/blur\(1\.5px\)/);
+    // overLight still tunes the surface (SVG-filter blur bumped) — a legibility nudge.
+    expect(filterBlurPx(container)).toBe(1.5);
     // But adaptivity stays OFF: the sampler is never mounted/invoked.
     expect(mockLuminance).not.toHaveBeenCalled();
   });
@@ -1606,7 +1644,7 @@ describe('variant: regular vs clear (plan 019)', () => {
     // Regular leaves adaptiveTint intact: it samples and applies the light
     // treatment (blur bumped, dark ink) exactly as plan 018.
     expect(mockLuminance).toHaveBeenCalled();
-    expect(styleOf(getSurface(container), 'backdropFilter')).toMatch(/blur\(1\.5px\)/);
+    expect(filterBlurPx(container)).toBe(1.5);
     expect(getContent(container).style.color).toMatch(/17, 17, 20/);
   });
 
@@ -1624,9 +1662,9 @@ describe('variant: regular vs clear (plan 019)', () => {
       expect(surface.style.boxShadow).toMatch(/^inset 0(px)? 0(px)? 0(px)? 2px/);
       expect(styleOf(surface, 'background')).toMatch(/rgba\(/);
       // Saturation pinned to 100 (contrast wins over both the decorative boost
-      // AND the Clear saturation reduction).
-      expect(styleOf(surface, 'backdropFilter')).toMatch(/saturate\(100%\)/);
-      expect(styleOf(surface, 'backdropFilter')).not.toMatch(/saturate\(200%\)/);
+      // AND the Clear saturation reduction) — in the SVG filter on the url tier.
+      expect(saturationOf(container)).toBe(100);
+      expect(saturationOf(container)).not.toBe(200);
       unmount();
     }
   });

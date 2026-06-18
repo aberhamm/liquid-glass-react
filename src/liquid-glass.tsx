@@ -347,20 +347,29 @@ interface Dimensions {
 // ---------------------------------------------------------------------------
 
 /**
- * Compose the `backdrop-filter` value. `filterUrl` (`url(#id)`) is prepended
- * only when refraction is active. `overLight` increases the blur somewhat for
- * legibility over bright backgrounds.
+ * Compose the `backdrop-filter` value.
+ *
+ * When `filterUrl` (`url(#id)`) is active (TIER 1, Chrome full-refraction), the
+ * SVG `<filter>` already performs blur + saturation as its final primitives, so
+ * the backdrop-filter is JUST the `url(#id)` term. This is deliberate: Chrome
+ * SILENTLY DROPS a trailing CSS `blur()`/`saturate()` when an SVG `url()` filter
+ * leads a `backdrop-filter`, which made `blurAmount`/`saturation` no-ops on that
+ * tier. Folding them into the SVG filter restores them.
+ *
+ * When `filterUrl` is null (TIER 2 frosted / TIER 3 fallback, no url), the CSS
+ * `blur()`/`saturate()` work correctly, so we emit them. `overLight` bumps blur
+ * for legibility over bright backgrounds.
  */
 function composeBackdropFilter(
-  blurAmount: number,
+  blurPx: number,
   saturation: number,
-  overLight: boolean,
   filterUrl: string | null,
 ): string {
-  // blurAmount is a unit factor; map to px. overLight bumps blur for contrast.
-  const blurPx = blurAmount * BLUR_PX_PER_UNIT * (overLight ? 1.5 : 1);
-  const base = `blur(${blurPx}px) saturate(${saturation}%)`;
-  return filterUrl ? `${filterUrl} ${base}` : base;
+  if (filterUrl) {
+    // Blur + saturate live inside the SVG filter now — emit the url alone.
+    return filterUrl;
+  }
+  return `blur(${blurPx}px) saturate(${saturation}%)`;
 }
 
 // ---------------------------------------------------------------------------
@@ -375,6 +384,14 @@ interface GlassFilterProps {
   /** Effective displacement scale (already halved when `overLight`). */
   effectiveScale: number;
   aberrationIntensity: number;
+  /**
+   * The blur radius in px to apply as the filter's final pass. Maps 1:1 to a CSS
+   * `blur()` radius (`feGaussianBlur stdDeviation`). Lives in the SVG filter
+   * because Chrome drops a CSS `blur()` that trails an SVG `url()` filter.
+   */
+  blurStdDeviation: number;
+  /** Effective saturation as a PERCENT (e.g. 160) — applied via feColorMatrix. */
+  saturation: number;
 }
 
 /**
@@ -392,6 +409,8 @@ function GlassFilter({
   height,
   effectiveScale,
   aberrationIntensity,
+  blurStdDeviation,
+  saturation,
 }: GlassFilterProps): ReactNode {
   const isTurbulence = mode === 'turbulence';
 
@@ -459,6 +478,17 @@ function GlassFilter({
     );
   };
 
+  // An SVG filter's backdrop sample is only the element's own box (unlike a CSS
+  // backdrop-filter blur, which can sample the whole page), so a blur larger than
+  // ~half the smaller box dimension washes the box out to transparent instead of
+  // reading as "more blur". Clamp to what the box can actually render so the
+  // WHOLE blurAmount range produces a clean, visible blur (saturating at the top)
+  // rather than degenerating, and size the filter region to give it headroom.
+  const maxBlur = Math.min(width, height) * 0.5;
+  const clampedBlur = Math.min(Math.max(blurStdDeviation, 0), maxBlur);
+  const marginX = width * 0.5 + clampedBlur * 3;
+  const marginY = height * 0.5 + clampedBlur * 3;
+
   return (
     <svg
       aria-hidden="true"
@@ -470,10 +500,14 @@ function GlassFilter({
         <filter
           id={filterId}
           primitiveUnits="userSpaceOnUse"
-          x="0"
-          y="0"
-          width={width}
-          height={height}
+          // Expand the filter region beyond the box (scaled to the clamped blur)
+          // so the final feGaussianBlur has headroom and does NOT fade/clip the
+          // glass edges to transparent. The displacement-map and edge-mask
+          // feImage primitives stay pinned at 0,0,W,H below.
+          x={-marginX}
+          y={-marginY}
+          width={width + marginX * 2}
+          height={height + marginY * 2}
           filterUnits="userSpaceOnUse"
           colorInterpolationFilters="sRGB"
         >
@@ -531,7 +565,13 @@ function GlassFilter({
           {/* Keep the warped result only where the edge mask is opaque (the
               rim); elsewhere fall through to the unwarped backdrop. */}
           <feComposite in="softened" in2="edgeMask" operator="in" result="edgeOnly" />
-          <feComposite in="edgeOnly" in2="SourceGraphic" operator="over" />
+          <feComposite in="edgeOnly" in2="SourceGraphic" operator="over" result="refracted" />
+          {/* Blur + saturate live HERE (not in CSS) so they survive on Chrome's
+              url()-led backdrop-filter. Order matches CSS `blur() saturate()`:
+              blur first, then saturate. The final primitive (feColorMatrix) is
+              the filter output and MUST NOT carry a `result`. */}
+          <feGaussianBlur in="refracted" stdDeviation={clampedBlur} result="blurred" />
+          <feColorMatrix in="blurred" type="saturate" values={`${saturation / 100}`} />
         </filter>
       </defs>
     </svg>
@@ -829,8 +869,12 @@ export function LiquidGlass({
   //   - TIER 3 solid: !supportsBackdropFilter — a translucent solid background so
   //     content stays legible (no transparent unreadable box); still rim + bevel
   //     + motion for polish.
+  // Single source of truth for the blur radius (px). Used BOTH for the SVG
+  // filter's feGaussianBlur (TIER 1) and the CSS blur() fallback string (TIER
+  // 2/3). blurAmount is a unit factor; overLight bumps blur for contrast.
+  const blurPx = blurAmount * BLUR_PX_PER_UNIT * (effectiveOverLight ? 1.5 : 1);
   const backdropFilter = supportsBackdropFilter
-    ? composeBackdropFilter(blurAmount, effectiveSaturation, effectiveOverLight, filterUrl)
+    ? composeBackdropFilter(blurPx, effectiveSaturation, filterUrl)
     : undefined;
 
   const radius = toCssLength(cornerRadius);
@@ -1155,6 +1199,8 @@ export function LiquidGlass({
             height={dimensions.height}
             effectiveScale={effectiveScale}
             aberrationIntensity={effectiveAberration}
+            blurStdDeviation={blurPx}
+            saturation={effectiveSaturation}
           />
         ) : null}
       </div>
