@@ -30,6 +30,9 @@ const meta = {
           "Import the stylesheet once: import '@aberhamm/liquid-glass-react/styles.css'.",
       },
     },
+    // The demo stories below render fixed compositions, so their Controls panel
+    // is inert. Disable it at the meta level and re-enable ONLY on Playground.
+    controls: { disable: true },
   },
   argTypes: {
     size: {
@@ -63,7 +66,9 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /** Uncontrolled default driven by the controls panel. */
-export const Playground: Story = {};
+export const Playground: Story = {
+  parameters: { controls: { disable: false } },
+};
 
 const columnStyle = {
   display: 'flex',
