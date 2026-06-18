@@ -141,107 +141,94 @@ const glassLabel = (text: string): ReactElement => (
   </span>
 );
 
+// How many mosaic cells to render — enough to overfill the inset:-10% area at
+// the cell size below so the glass always has dense content behind it.
+const PLAYGROUND_CELLS = 300;
+
 const PLAYGROUND_CSS = `
 .lg-pg {
   position: relative;
   height: 100vh;
   width: 100%;
-  overflow-y: auto;
-  background: linear-gradient(180deg, #fbfcfe 0%, #eef1f6 100%);
-  font-family: ${SANS_FONT};
-}
-.lg-pg__bar {
-  position: sticky;
-  top: 1.5rem;
-  z-index: 5;
-  display: flex;
-  justify-content: center;
-  margin-bottom: 1.5rem;
-}
-.lg-pg__col {
-  max-width: 40rem;
-  margin: 0 auto;
-  padding: 1.5rem 1.5rem 8rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-.lg-pg__card {
-  position: relative;
-  border-radius: 18px;
-  padding: 1.5rem;
-  min-height: 9rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  color: #fff;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.22);
   overflow: hidden;
+  background: #0c1024;
+  font-family: ${SANS_FONT};
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.lg-pg__card::after {
-  content: '';
+/* Dense, drifting photo mosaic — the HIGH-FREQUENCY content the glass refracts.
+   Many small tiles (sharp edges, not smooth gradients) so displacement /
+   aberration / blur / saturation / mode are clearly visible at the glass rim;
+   a smooth gradient would make every refraction prop look dead. It drifts
+   slowly so fresh content passes under the glass, and honors reduced-motion.
+   The glass stays in NORMAL FLOW (z-index 1) — never position:fixed, which
+   degrades the SVG-displacement backdrop-filter to a plain blur in Chrome. */
+.lg-pg__mosaic {
   position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0) 35%, rgba(15, 23, 42, 0.5) 100%);
-  pointer-events: none;
+  inset: -10%;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 76px);
+  grid-auto-rows: 76px;
+  gap: 7px;
+  justify-content: center;
+  align-content: center;
+  will-change: transform;
+  animation: lg-pg-drift 26s ease-in-out infinite alternate;
 }
-.lg-pg__card h3,
-.lg-pg__card p { position: relative; z-index: 1; margin: 0; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45); }
-.lg-pg__card h3 { font-size: 1.05rem; margin-bottom: 0.35rem; }
-.lg-pg__card p { font-size: 0.9rem; line-height: 1.5; opacity: 0.95; }
+.lg-pg__cell { border-radius: 9px; }
+@keyframes lg-pg-drift {
+  0%   { transform: translate3d(-2.5%, -2%, 0) scale(1.08); }
+  100% { transform: translate3d(2.5%, 2%, 0) scale(1.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lg-pg__mosaic { animation: none; transform: none; inset: 0; }
+}
+.lg-pg__stage { position: relative; z-index: 1; }
+.lg-pg__hint {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  margin: 0;
+  padding: 7px 15px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 0.8rem;
+}
 `;
 
-const PLAYGROUND_CARDS = [
-  {
-    t: 'Scroll me under the glass',
-    d: 'The bar above is pinned — flick or drag the scrollbar and watch real content pass beneath it.',
-  },
-  {
-    t: 'Tweak while you scroll',
-    d: 'Every prop in the Controls panel updates the glass live, even mid-scroll.',
-  },
-  { t: 'displacementScale', d: 'Higher values bend the photo behind the glass more aggressively.' },
-  {
-    t: 'aberrationIntensity',
-    d: 'Adds RGB channel separation (rainbow fringing) at the refracted edges.',
-  },
-  {
-    t: 'cornerRadius / padding',
-    d: 'Reshape and resize the glass surface — geometry stays layout-shift free.',
-  },
-  { t: 'mode', d: 'Swap the displacement algorithm: polar, prominent, shader, turbulence.' },
-  {
-    t: 'variant: clear',
-    d: 'A permanently more transparent, non-adaptive surface for media-rich UIs.',
-  },
-  {
-    t: 'adaptiveTint',
-    d: 'Auto light/dark tint from the backdrop — try it over these varied tiles.',
-  },
-];
-
 /**
- * Interactive sandbox: a glass bar pinned at the top of a SCROLLABLE column of
- * photo cards, so real content scrolls under the glass while every prop stays
- * live-editable from the Controls panel. Hover the glass to feel the elastic
- * follow (tracking the global pointer, like a consumer's default usage).
+ * Interactive sandbox: the glass floats (in normal flow) over a dense, drifting
+ * mosaic of colorful photo tiles. The high-frequency tile edges make every
+ * refraction prop (displacementScale, saturation, aberrationIntensity,
+ * blurAmount, mode) VISIBLY change the result, and the slow drift pushes fresh
+ * content under the glass. Hover for the elastic follow; tweak everything from
+ * the Controls panel.
  */
 const PlaygroundStory = (args: LiquidGlassProps): ReactElement => {
   return (
     <div className="lg-pg">
       <style>{PLAYGROUND_CSS}</style>
 
-      <div className="lg-pg__bar">
-        <LiquidGlass {...args} />
+      <div className="lg-pg__mosaic">
+        {Array.from({ length: PLAYGROUND_CELLS }, (_, i) => (
+          <div
+            // biome-ignore lint/suspicious/noArrayIndexKey: static decorative tiles, fixed order
+            key={i}
+            className="lg-pg__cell"
+            style={{ background: photoTileBackground(i) }}
+          />
+        ))}
       </div>
 
-      <div className="lg-pg__col">
-        {PLAYGROUND_CARDS.map((c, i) => (
-          <article key={c.t} className="lg-pg__card" style={{ background: photoTileBackground(i) }}>
-            <h3>{c.t}</h3>
-            <p>{c.d}</p>
-          </article>
-        ))}
+      <p className="lg-pg__hint">
+        Tweak any prop in the Controls panel ↓ — the glass refracts the photos behind it
+      </p>
+      <div className="lg-pg__stage">
+        <LiquidGlass {...args} />
       </div>
     </div>
   );
@@ -249,9 +236,9 @@ const PlaygroundStory = (args: LiquidGlassProps): ReactElement => {
 
 /**
  * Drive every prop from the controls panel. Move `displacementScale`,
- * `aberrationIntensity` and `elasticity` while hovering the surface to feel the
- * refraction and elastic follow, and SCROLL the column to watch real content
- * pass under the pinned glass.
+ * `saturation`, `aberrationIntensity` and `elasticity` while hovering the
+ * surface to feel the refraction and elastic follow — the dense photo mosaic
+ * behind the glass makes each change clearly visible.
  */
 export const Playground: Story = {
   args: {
@@ -259,15 +246,16 @@ export const Playground: Story = {
   },
   parameters: {
     layout: 'fullscreen',
-    // Supplies its own full-bleed scrollable stage — opt out of the centered
-    // global backdrop. Controls stay ENABLED here (this is the sandbox).
+    // Supplies its own full-bleed stage — opt out of the centered global
+    // backdrop. Controls stay ENABLED here (this is the sandbox).
     noBackdrop: true,
     docs: {
       description: {
         story:
           'The interactive sandbox. Every prop is editable from the Controls ' +
-          'panel below, and the glass is pinned over a SCROLLABLE column of ' +
-          'photo cards so you can scroll real content under it while you tweak.',
+          'panel below, and the glass floats over a dense, drifting mosaic of ' +
+          'colorful photo tiles whose high-frequency edges make every refraction ' +
+          'prop visibly change the result.',
       },
     },
   },
