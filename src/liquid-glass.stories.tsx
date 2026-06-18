@@ -157,34 +157,29 @@ const PLAYGROUND_CSS = `
   align-items: center;
   justify-content: center;
 }
-/* Dense, drifting photo mosaic — the HIGH-FREQUENCY content the glass refracts.
-   Many small tiles (sharp edges, not smooth gradients) so displacement /
-   aberration / blur / saturation / mode are clearly visible at the glass rim;
-   a smooth gradient would make every refraction prop look dead. It drifts
-   slowly so fresh content passes under the glass, and honors reduced-motion.
-   The glass stays in NORMAL FLOW (z-index 1) — never position:fixed, which
-   degrades the SVG-displacement backdrop-filter to a plain blur in Chrome. */
+/* Dense photo mosaic — the HIGH-FREQUENCY content the glass refracts. Many
+   small tiles (sharp edges, not smooth gradients) so displacement / aberration /
+   blur / saturation / mode are clearly visible; a smooth gradient would make
+   every refraction prop look dead. It is STATIC and has no transform/animation:
+   the glass samples it via backdrop-filter, and anything that puts the backdrop
+   (or a wrapper around the glass) into its own stacking context breaks that
+   sampling — which is exactly what makes the controls feel dead. */
 .lg-pg__mosaic {
   position: absolute;
-  inset: -10%;
+  inset: 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, 76px);
   grid-auto-rows: 76px;
   gap: 7px;
   justify-content: center;
   align-content: center;
-  will-change: transform;
-  animation: lg-pg-drift 26s ease-in-out infinite alternate;
 }
 .lg-pg__cell { border-radius: 9px; }
-@keyframes lg-pg-drift {
-  0%   { transform: translate3d(-2.5%, -2%, 0) scale(1.08); }
-  100% { transform: translate3d(2.5%, 2%, 0) scale(1.08); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .lg-pg__mosaic { animation: none; transform: none; inset: 0; }
-}
-.lg-pg__stage { position: relative; z-index: 1; }
+/* CRITICAL: no z-index / transform / filter here. The glass must share a
+   stacking context with the mosaic so its backdrop-filter actually samples it.
+   position:relative (with z-index:auto) keeps the glass painted above the
+   absolutely-positioned mosaic via DOM order WITHOUT creating a context. */
+.lg-pg__stage { position: relative; }
 .lg-pg__hint {
   position: absolute;
   top: 14px;
@@ -201,11 +196,11 @@ const PLAYGROUND_CSS = `
 `;
 
 /**
- * Interactive sandbox: the glass floats (in normal flow) over a dense, drifting
- * mosaic of colorful photo tiles. The high-frequency tile edges make every
- * refraction prop (displacementScale, saturation, aberrationIntensity,
- * blurAmount, mode) VISIBLY change the result, and the slow drift pushes fresh
- * content under the glass. Hover for the elastic follow; tweak everything from
+ * Interactive sandbox: the glass floats (in normal flow, sharing the mosaic's
+ * stacking context so backdrop-filter actually samples it) over a dense mosaic
+ * of colorful photo tiles. The high-frequency tile edges make every refraction
+ * prop (displacementScale, saturation, aberrationIntensity, blurAmount, mode)
+ * VISIBLY change the result. Hover for the elastic follow; tweak everything from
  * the Controls panel.
  */
 const PlaygroundStory = (args: LiquidGlassProps): ReactElement => {
@@ -253,9 +248,9 @@ export const Playground: Story = {
       description: {
         story:
           'The interactive sandbox. Every prop is editable from the Controls ' +
-          'panel below, and the glass floats over a dense, drifting mosaic of ' +
-          'colorful photo tiles whose high-frequency edges make every refraction ' +
-          'prop visibly change the result.',
+          'panel below, and the glass floats over a dense mosaic of colorful ' +
+          'photo tiles whose high-frequency edges make every refraction prop ' +
+          'visibly change the result.',
       },
     },
   },
