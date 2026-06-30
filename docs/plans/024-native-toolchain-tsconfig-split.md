@@ -1,13 +1,16 @@
 ---
 id: 024
 title: Provision the React Native dev toolchain and split tsconfig for platform files
-status: in-progress
+status: done
 blocked-by: []
 priority:
 goal: cross-browser-expo-liquid-glass
 allows-migrations: false
 needs-review: none
 created: 2026-06-22
+completed: 2026-06-30
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -121,3 +124,24 @@ Testing approach: unit-only
 - [assert] `grep -qE '\.native\.' tsconfig.json && echo excluded` outputs `excluded`
 - [assert] `grep -qE '\.native\.' vite.config.ts && echo dts-excluded` outputs `dts-excluded`
 - [cmd] `test -f tsconfig.native.json && test -f vitest.native.config.ts`
+
+## Implementation Notes
+
+Provisioned the React Native dev toolchain and split tsconfig/vitest so web and native worlds coexist in one `src/`. Pinned the latest stable Expo SDK 56 line as devDeps: `react-native@^0.83.10`, `expo-blur@^56.0.3`, `expo-linear-gradient@^56.0.4`, `@testing-library/react-native@^14.0.1`, `react-test-renderer@^19.2.7` (no deprecated `@types/react-native`; peerDep `react >=18` unchanged). Added `tsconfig.native.json` (RN libs, explicit `moduleResolution: bundler`, native-only include), `vitest.native.config.ts` (node env, `passWithNoTests`, native mocks), excluded `*.native.*` from the web tsconfig, vite-plugin-dts rollup, and jsdom vitest run, and wired `typecheck:native` + `test:native` scripts — all pass trivially with no native files yet; every existing web gate stays green.
+
+**Deviations:** (1) `moduleResolution: bundler` (acceptance permits node16/bundler) — RN/Expo ship `exports` maps bundler honors. (2) Added inert `tsconfig.native.placeholder.ts` so `tsc -p tsconfig.native.json` avoids TS18003 until 025 adds native files; not published. (3) biome override so `tsconfig.*.json` gets JSONC treatment. (4) **For plan 025:** `expo-blur`/`expo-linear-gradient` have an unmet `expo` peer — 025 may need to add `expo` itself.
+
+**Files changed:**
+
+- `package.json` (modified)
+- `pnpm-lock.yaml` (modified)
+- `tsconfig.json` (modified)
+- `vite.config.ts` (modified)
+- `vitest.config.ts` (modified)
+- `biome.json` (modified)
+- `tsconfig.native.json` (created)
+- `vitest.native.config.ts` (created)
+- `vitest.native.setup.ts` (created)
+- `tsconfig.native.placeholder.ts` (created)
+
+**Commit:** `9af6493` — `chore(toolchain): provision React Native dev toolchain + split tsconfig/vitest`

@@ -26,5 +26,7 @@
     "types": ["vitest/globals", "@testing-library/jest-dom"]
   },
   "include": ["src", "vite.config.ts", "vitest.config.ts"],
-  "exclude": ["dist", "node_modules"]
+  // `src/**/*.native.{ts,tsx}` (plan 025's React Native files) are compiled by
+  // tsconfig.native.json against RN libs — never by this DOM-only web config.
+  "exclude": ["dist", "node_modules", "src/**/*.native.{ts,tsx}"]
 }

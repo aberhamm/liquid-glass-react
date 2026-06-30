@@ -1,0 +1,32 @@
+{
+  // React Native type-check config (plan 024 toolchain split).
+  //
+  // The web `tsconfig.json` compiles `src/` against a DOM-only `lib` and
+  // EXCLUDES `src/**/*.native.{ts,tsx}`. This config is the mirror image: it
+  // owns the `.native` files and compiles them against React Native types
+  // (no DOM). Plan 025 authors `liquid-glass.native.tsx` / `index.native.ts`;
+  // until then the `include` glob matches nothing but the placeholder, so
+  // `pnpm typecheck:native` exits 0 trivially.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // React Native runs on Hermes/JSC — there is NO DOM. Drop the web base's
+    // ["ES2020","DOM","DOM.Iterable"] so native files can't accidentally
+    // reference DOM globals.
+    "lib": ["ESNext"],
+    "jsx": "react-jsx",
+    // EXPLICIT (do not silently inherit the web base's "bundler"): "bundler"
+    // honors react-native / expo-blur / expo-linear-gradient `exports` maps and,
+    // unlike "node16", does not force explicit file extensions on relative
+    // imports — the ergonomic choice current RN guidance recommends.
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    // The web base injects test-only global types (vitest/jest-dom). Native
+    // files get their types from imports (react-native ships its own), so reset
+    // the ambient `types` list here.
+    "types": [],
+    "noEmit": true
+  },
+  // The placeholder keeps the input set non-empty before plan 025 lands native
+  // files, so `tsc -p` never errors with TS18003 ("No inputs were found").
+  "include": ["src/**/*.native.{ts,tsx}", "tsconfig.native.placeholder.ts"]
+}

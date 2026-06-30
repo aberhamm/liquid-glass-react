@@ -47,7 +47,15 @@ export default defineConfig({
       rollupTypes: true,
       tsconfigPath: resolve(__dirname, 'tsconfig.json'),
       include: ['src'],
-      exclude: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/**/*.stories.tsx'],
+      // `src/**/*.native.*` (plan 025's React Native files) import `react-native`
+      // and Expo modules. Excluding them keeps the web declaration rollup
+      // (rollupTypes) from ever pulling RN types through the web build.
+      exclude: [
+        'src/**/*.test.ts',
+        'src/**/*.test.tsx',
+        'src/**/*.stories.tsx',
+        'src/**/*.native.*',
+      ],
     }),
     emitCjsDeclaration(),
   ],
