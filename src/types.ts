@@ -116,15 +116,39 @@ export type GlassCapabilities = {
 };
 
 /**
- * Props for the `<LiquidGlass>` PRIMITIVE.
+ * PLATFORM-NEUTRAL props for the `<LiquidGlass>` PRIMITIVE.
+ *
+ * The shared base that BOTH the web (`liquid-glass.tsx`) and React Native
+ * (`liquid-glass.native.tsx`, plan 025) surfaces extend. It holds every prop
+ * that does NOT depend on DOM types, so the native surface can build on it
+ * without leaking `CSSProperties` / DOM event handlers. The web
+ * {@link LiquidGlassProps} extends this with the DOM-only `style` / `onClick` /
+ * pointer props; the native barrel defines its own `style?: ViewStyle` /
+ * `onPress?` over this same core.
  *
  * Every prop except {@link children} is optional — the primitive ships sensible
  * defaults. Defaults documented here are the contract; the implementation plan
  * (004+) must honor them.
  */
-export interface LiquidGlassProps {
+export interface LiquidGlassCoreProps {
   /** Content rendered inside the glass surface. */
   children: ReactNode;
+
+  /**
+   * Opt into the live SVG refraction/displacement pass (WEB-ONLY progressive
+   * enhancement). When `false` (the default) the glass renders the frosted
+   * fallback look — `blur()`/`saturate()` backdrop plus the pure-CSS bevel —
+   * with no `feDisplacementMap`.
+   *
+   * - **Web:** when `true` AND the browser can refract (Chromium), the SVG
+   *   displacement filter is attached; otherwise it degrades to the frosted look.
+   * - **React Native:** a documented NO-OP. RN has no SVG-over-backdrop
+   *   compositing, so the prop is accepted for a single cross-platform contract
+   *   but the surface always renders the frosted fallback.
+   *
+   * @defaultValue `false`
+   */
+  displacement?: boolean;
 
   /**
    * Strength of the displacement/refraction distortion. Higher values bend the
@@ -317,7 +341,18 @@ export interface LiquidGlassProps {
 
   /** Additional class name(s) applied to the outermost glass element. */
   className?: string;
+}
 
+/**
+ * Props for the WEB `<LiquidGlass>` PRIMITIVE.
+ *
+ * The platform-neutral {@link LiquidGlassCoreProps} plus the DOM-only props the
+ * web surface needs: inline `style`, the `onClick` handler, and the externally
+ * controlled pointer inputs. This is the same surface the library has always
+ * exposed — splitting the core out is type-only and changes nothing for web
+ * consumers.
+ */
+export type LiquidGlassProps = LiquidGlassCoreProps & {
   /** Inline styles merged onto the outermost glass element. */
   style?: CSSProperties;
 
@@ -348,4 +383,4 @@ export interface LiquidGlassProps {
    * @defaultValue `null` (viewport)
    */
   mouseContainer?: RefObject<HTMLElement | null> | HTMLElement | null;
-}
+};

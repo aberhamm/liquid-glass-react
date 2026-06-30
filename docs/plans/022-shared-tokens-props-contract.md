@@ -1,13 +1,16 @@
 ---
 id: 022
 title: Extract shared platform-neutral design tokens + add displacement opt-in prop
-status: in-progress
+status: done
 blocked-by: []
 priority:
 goal: cross-browser-expo-liquid-glass
 allows-migrations: false
 needs-review: none
 created: 2026-06-22
+completed: 2026-06-30
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -136,3 +139,15 @@ Testing approach: unit-only
 - [assert] `grep -nE "FROSTED_DEFAULT_FILL|FROSTED_HAIRLINE_RING" src/tokens.ts` outputs matches
 - [assert] `grep -cE "from 'react'|from \"react\"|react-dom" src/tokens.ts` outputs `0`
 - [cmd] `node -e "const t=require('node:fs').readFileSync('src/tokens.ts','utf8'); if(/CSSProperties|document|window\./.test(t)) process.exit(1)"`
+
+## Implementation Notes
+
+Created `src/tokens.ts`, a platform-neutral leaf module (imports only the `DisplacementMode` string-union type from `./types`; no React, no DOM types, no browser globals), and moved the plain-data design constants out of `src/liquid-glass.tsx` verbatim — DEFAULTS, BLUR_PX_PER_UNIT, SHADOW_LAYERS, SCROLL_SHADOW_DEPTH, the specular/press-glow params, VARIANT_PARAMS, and the reduced-transparency/contrast/ink fills — re-importing them into the web file with no value changes. Split the prop contract in `src/types.ts` into a platform-neutral `LiquidGlassCoreProps` base plus a web `LiquidGlassProps = LiquidGlassCoreProps & { style, onClick, globalMousePos, mouseOffset, mouseContainer }` so the web surface is byte-for-byte equivalent; added `displacement?: boolean` to the core with TSDoc (web-only progressive enhancement, default OFF, RN no-op). Added the unapplied `FROSTED_DEFAULT_FILL` (`rgba(255,255,255,0.1)`) and `FROSTED_HAIRLINE_RING` ({color, width}) contract tokens for plan 023. CSS-string helpers and web-only consts (QUANT_GRID, TURBULENCE_BASE_FREQUENCY) stayed in the web file; tokens were not exported from `index.ts` per the eng-review decision.
+
+**Files changed:**
+
+- `src/liquid-glass.tsx` (modified)
+- `src/types.ts` (modified)
+- `src/tokens.ts` (created)
+
+**Commit:** `928f11c` — `feat(liquid-glass): extract platform-neutral tokens + split props contract`

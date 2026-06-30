@@ -50,6 +50,26 @@ import type { BackdropScheme } from './backdrop-luminance';
 import { type MapMode, getDisplacementMap } from './displacement';
 import { getGlassEdgeShadow } from './glass-edge';
 import { calculateDirectionalScale, calculateElasticTranslation } from './motion';
+import {
+  BLUR_PX_PER_UNIT,
+  CONTENT_INK,
+  CONTRAST_BORDER_COLOR,
+  CONTRAST_BORDER_WIDTH,
+  CONTRAST_FILL,
+  CONTRAST_SATURATION,
+  DEFAULTS,
+  PRESS_GLOW_OPACITY,
+  PRESS_GLOW_RADIUS,
+  REDUCED_TRANSPARENCY_FILL,
+  REDUCED_TRANSPARENCY_SOLID_FILL,
+  SCROLL_SHADOW_DEPTH,
+  SHADOW_LAYERS,
+  SPECULAR_CORE_OPACITY,
+  SPECULAR_RADIUS,
+  SPECULAR_REST_X,
+  SPECULAR_REST_Y,
+  VARIANT_PARAMS,
+} from './tokens';
 import type { DisplacementMode, LiquidGlassProps } from './types';
 import { useBackdropLuminance } from './use-backdrop-luminance';
 import { useGlassCapabilities } from './use-glass-capabilities';
@@ -57,21 +77,6 @@ import { useMousePosition } from './use-mouse-position';
 import { usePrefersContrast } from './use-prefers-contrast';
 import { useReducedMotion } from './use-reduced-motion';
 import { useReducedTransparency } from './use-reduced-transparency';
-
-// ---------------------------------------------------------------------------
-// Defaults (parity spec — plan 004)
-// ---------------------------------------------------------------------------
-
-const DEFAULTS = {
-  displacementScale: 70,
-  blurAmount: 0.0625,
-  saturation: 140,
-  aberrationIntensity: 2,
-  cornerRadius: 999 as number | string,
-  mode: 'standard' as DisplacementMode,
-  padding: '24px 32px' as number | string,
-  elasticity: 0.15,
-} as const;
 
 /**
  * Quantization grid (px) for measured dims — mirrors plan 003's displacement
@@ -81,165 +86,6 @@ const QUANT_GRID = 16;
 
 /** `feTurbulence` base frequency for the procedural turbulence mode (tunable). */
 const TURBULENCE_BASE_FREQUENCY = 0.015;
-
-/**
- * Maps the small public `blurAmount` (default `0.0625`) onto a px backdrop blur.
- * The upstream convention treats `blurAmount` as a rem-ish factor; we scale by
- * 16 (1rem) so the default lands at ~1px and larger values scale linearly.
- */
-const BLUR_PX_PER_UNIT = 16;
-
-/**
- * Scheme-aware translucent fill layered ON TOP of the blurred backdrop when
- * `prefers-reduced-transparency: reduce` is active and the backdrop tiers (1/2)
- * still carry a `backdrop-filter`. It frosts the surface toward opaque so the
- * material reads as static frosted glass rather than live lensing. Higher alpha
- * than the tier-3 solid fill because here it composites over a blurred backdrop,
- * not bare content. (a11y plan 013.)
- */
-const REDUCED_TRANSPARENCY_FILL = {
-  light: 'rgba(255, 255, 255, 0.75)',
-  dark: 'rgba(30, 30, 35, 0.75)',
-} as const;
-
-/**
- * Scheme-aware solid fill for the no-`backdrop-filter` tier (3) under reduced
- * transparency: a higher alpha than the default `0.55` solid fallback so the
- * surface is more opaque / less transparent as the setting requests.
- */
-const REDUCED_TRANSPARENCY_SOLID_FILL = {
-  light: 'rgba(255, 255, 255, 0.92)',
-  dark: 'rgba(30, 30, 35, 0.92)',
-} as const;
-
-/**
- * Increased-contrast (a11y plan 014). When `(prefers-contrast: more)` is active
- * the glass adds a SOLID, visible border and raises content legibility while
- * toning down decorative refraction artifacts that hurt contrast. This axis is
- * ORTHOGONAL to the 3 capability tiers AND to reduced-transparency (013): both
- * may be active at once and must stay legible + shift-free.
- */
-
-/**
- * Solid border color drawn as an INSET `box-shadow` ring on the surface so the
- * box geometry is unchanged (no layout shift) — a real `border` would grow the
- * box or eat into padding. Scheme-aware near-opaque ink/light for a clearly
- * delineated edge that the soft bevel alone cannot provide.
- */
-const CONTRAST_BORDER_COLOR = {
-  light: 'rgba(0, 0, 0, 0.92)',
-  dark: 'rgba(255, 255, 255, 0.92)',
-} as const;
-
-/** Inset solid-border ring width (px), prepended to the surface box-shadow. */
-const CONTRAST_BORDER_WIDTH = 2;
-
-// ---------------------------------------------------------------------------
-// Pointer-tracked specular hotspot + glow-on-press (plan 016)
-// ---------------------------------------------------------------------------
-
-/**
- * Resting specular-hotspot center as a percentage of the surface box. With no
- * pointer over the glass (or under reduced-motion) the highlight falls back to a
- * neutral, top-biased position so the material reads like overhead light on
- * glass rather than a flat sweep. Top-center, slightly above the box.
- */
-const SPECULAR_REST_X = '50%';
-const SPECULAR_REST_Y = '0%';
-
-/**
- * Peak opacity of the specular hotspot's bright core (the inner stop). Hover
- * brightens it slightly (see {@link LiquidGlass}); these are the base values.
- */
-const SPECULAR_CORE_OPACITY = { rest: 0.55, hover: 0.85 } as const;
-
-/**
- * Radius of the specular hotspot gradient as a percentage of the surface's
- * larger dimension. Big enough to read as a soft glassy hotspot, small enough
- * that it tracks visibly rather than washing the whole surface.
- */
-const SPECULAR_RADIUS = '70%';
-
-/**
- * Peak opacity of the press-glow bloom's core when active. The glow originates
- * at the contact point and spreads, then fades via the layer's opacity
- * transition (gated on reduced-motion).
- */
-const PRESS_GLOW_OPACITY = 0.5;
-
-/** Radius of the press-glow bloom as a percentage of the surface box. */
-const PRESS_GLOW_RADIUS = '60%';
-
-/**
- * More-opaque scheme-aware surface fill under increased contrast: it reduces
- * the backdrop tint/show-through so foreground content reads at a higher
- * contrast ratio. Layered over any retained blur (tiers 1/2) or used as the
- * solid fill (tier 3). At 0.92 alpha it is at least as opaque as the
- * reduced-transparency fills, so when BOTH a11y axes are active the contrast
- * fill never undercuts reduced-transparency's opacity intent — contrast wants
- * MORE opacity, not less, on every tier.
- */
-const CONTRAST_FILL = {
-  light: 'rgba(255, 255, 255, 0.92)',
-  dark: 'rgba(22, 22, 26, 0.92)',
-} as const;
-
-/**
- * Under increased contrast, saturation is pinned to 100% (no decorative
- * vibrancy boost) so the backdrop doesn't push color that competes with
- * foreground text. The default `saturation` (140) is decorative and harms
- * contrast, so it is overridden — never raised.
- */
-const CONTRAST_SATURATION = 100;
-
-/**
- * Content-adaptive foreground ink (plan 018). When `adaptiveTint` is on, the
- * content layer's `color` flips with the verdict so small content (button
- * labels, captions) stays legible: DARK ink over a bright/light backdrop, LIGHT
- * ink over a dark backdrop. `color` is inheritable, so children that don't set
- * their own color pick it up; children with an explicit color keep it. Best-
- * effort legibility — see the `adaptiveTint` TSDoc limitation note.
- */
-const CONTENT_INK = {
-  light: 'rgba(255, 255, 255, 0.96)',
-  dark: 'rgba(17, 17, 20, 0.96)',
-} as const;
-
-// ---------------------------------------------------------------------------
-// Scroll-aware shadow modulation (plan 021)
-// ---------------------------------------------------------------------------
-
-/**
- * The static drop-shadow (the `static` factor of 1 reproduces today's exact
- * values) is scaled by a single multiplier per backdrop scheme. The shadow
- * DEEPENS/DARKENS over a dark backdrop (factor > 1 → larger offset/blur + darker
- * alpha, lifting the glass above dense scrolling content) and EASES/LIGHTENS over
- * a light/solid one (factor < 1). Factors are deliberately subtle so the polish
- * reads as a gentle depth shift, not a jump.
- *
- * Keys map directly to {@link BackdropScheme}; `static` is the SSR / first-paint /
- * unsampled fallback and equals the committed baseline shadow exactly.
- */
-const SCROLL_SHADOW_DEPTH = {
-  /** Conservative fallback: byte-for-byte the existing static shadow. */
-  static: 1,
-  /** Dark/dense backdrop ⇒ deeper, darker shadow. */
-  dark: 1.35,
-  /** Light/solid backdrop ⇒ shallower, lighter shadow. */
-  light: 0.7,
-} as const;
-
-/** Base outer drop-shadow layers (offsetY, blur, alpha) at rest and on hover. */
-const SHADOW_LAYERS = {
-  rest: [
-    { y: 8, blur: 24, alpha: 0.22 },
-    { y: 1, blur: 4, alpha: 0.14 },
-  ],
-  hover: [
-    { y: 12, blur: 32, alpha: 0.28 },
-    { y: 2, blur: 8, alpha: 0.18 },
-  ],
-} as const;
 
 /**
  * Build the outer drop-shadow `box-shadow` from the base layers scaled by
@@ -259,47 +105,6 @@ function buildDropShadow(hovered: boolean, depth: number): string {
     })
     .join(', ');
 }
-
-// ---------------------------------------------------------------------------
-// Material variant resolver (plan 019)
-// ---------------------------------------------------------------------------
-
-/**
- * Per-variant surface parameters (plan 019). A small parameter LOOKUP — NOT a
- * theming system — that feeds the existing surface/content styles.
- *
- * - `'regular'` is a pure pass-through: `saturationFactor = 1`, no scrim, and
- *   `forceNonAdaptive = false`, so the default render is byte-for-byte unchanged
- *   and `adaptiveTint` keeps working exactly as in plan 018.
- * - `'clear'` is permanently MORE transparent: the decorative backdrop saturation
- *   is pulled back (`saturationFactor < 1` reduces the tint/vibrancy show-through)
- *   and `forceNonAdaptive` hard-disables the adaptive sampling path. A subtle
- *   dimming scrim is rendered as a CONTENT SIBLING (see the layer stack) so labels
- *   stay legible over busy media without re-introducing adaptivity.
- */
-const VARIANT_PARAMS = {
-  regular: {
-    /** Multiplier on the requested `saturation` (1 = unchanged). */
-    saturationFactor: 1,
-    /** Force the adaptive-tint path off regardless of `adaptiveTint`. */
-    forceNonAdaptive: false,
-    /** Scheme-aware dimming-scrim color behind the content, or `null` for none. */
-    scrim: null as { light: string; dark: string } | null,
-  },
-  clear: {
-    // Reduce the tint/vibrancy so the material reads as clearer (more of the
-    // backdrop shows through), per the Clear aesthetic.
-    saturationFactor: 0.7,
-    // Clear has NO adaptive behavior by definition — it never samples.
-    forceNonAdaptive: true,
-    // A subtle scheme-aware scrim so foreground labels stay readable over busy
-    // media even though the surface itself is more transparent.
-    scrim: {
-      light: 'rgba(0, 0, 0, 0.18)',
-      dark: 'rgba(0, 0, 0, 0.28)',
-    } as { light: string; dark: string } | null,
-  },
-} as const;
 
 function quantize(value: number): number {
   return Math.max(QUANT_GRID, Math.round(value / QUANT_GRID) * QUANT_GRID);
