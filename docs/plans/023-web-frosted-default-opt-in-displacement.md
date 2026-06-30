@@ -1,7 +1,7 @@
 ---
 id: 023
 title: Make frosted glass the web default and SVG displacement opt-in
-status: blocked
+status: pending
 blocked-by: [022]
 priority:
 goal: cross-browser-expo-liquid-glass

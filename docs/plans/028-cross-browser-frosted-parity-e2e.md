@@ -1,7 +1,7 @@
 ---
 id: 028
 title: Cross-browser e2e for frosted parity and displacement-only-where-supported
-status: blocked
+status: pending
 blocked-by: [023, 027]
 priority:
 goal: cross-browser-expo-liquid-glass

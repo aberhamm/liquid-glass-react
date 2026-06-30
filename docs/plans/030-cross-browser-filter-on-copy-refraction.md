@@ -1,7 +1,7 @@
 ---
 id: 030
 title: Cross-browser refraction via filter-on-copy (in-place + refract node)
-status: blocked
+status: pending
 blocked-by: [022, 023]
 priority:
 goal: cross-browser-expo-liquid-glass

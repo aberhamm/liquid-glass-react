@@ -1,7 +1,7 @@
 ---
 id: 029
 title: Document web + Expo usage, displacement opt-in, and peer-dep install
-status: blocked
+status: pending
 blocked-by: [023, 025, 030]
 priority:
 goal: cross-browser-expo-liquid-glass
