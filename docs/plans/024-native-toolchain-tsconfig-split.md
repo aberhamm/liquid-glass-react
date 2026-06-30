@@ -1,7 +1,7 @@
 ---
 id: 024
 title: Provision the React Native dev toolchain and split tsconfig for platform files
-status: pending
+status: in-progress
 blocked-by: []
 priority:
 goal: cross-browser-expo-liquid-glass
