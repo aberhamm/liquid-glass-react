@@ -1,7 +1,7 @@
 ---
 id: 022
 title: Extract shared platform-neutral design tokens + add displacement opt-in prop
-status: pending
+status: in-progress
 blocked-by: []
 priority:
 goal: cross-browser-expo-liquid-glass
