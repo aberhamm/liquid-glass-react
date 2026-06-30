@@ -1,12 +1,16 @@
 /**
  * `<LiquidGlass>` — the headline refraction primitive (plan 004).
  *
- * Renders the Chromium "liquid glass" effect by layering an inline SVG
- * `feDisplacementMap` filter over a `backdrop-filter`. The component is
- * capability-gated: it only attaches the SVG filter when `canRefract` is true
- * AND it has measured its own rendered size. The visible cross-browser fallback
- * markup lands in plan 006; here, when refraction is unavailable, the surface
- * simply keeps its plain `blur()/saturate()` backdrop and omits the filter.
+ * The DEFAULT render is the portable frosted-glass recipe — a faint white tint +
+ * `blur()/saturate()` backdrop + ~1px hairline ring + soft drop shadow, plus the
+ * pure-CSS liquid character (specular hotspot, rim-light, bevel) — which renders
+ * identically in every engine. The headline Chromium "liquid glass" refraction
+ * (an inline SVG `feDisplacementMap` filter layered over `backdrop-filter`) is an
+ * OPT-IN, web-only enhancement gated on the `displacement` prop (plan 023): it
+ * only attaches when `displacement` is true AND `canRefract` is true AND the
+ * component has measured its own rendered size. When `displacement` is
+ * false/unset or refraction is unavailable, the surface renders the frosted base
+ * and omits the filter — a graceful, cross-browser-identical fallback.
  *
  * ## Layer stack (content isolation is a hard requirement)
  *
@@ -58,6 +62,8 @@ import {
   CONTRAST_FILL,
   CONTRAST_SATURATION,
   DEFAULTS,
+  FROSTED_DEFAULT_FILL,
+  FROSTED_HAIRLINE_RING,
   PRESS_GLOW_OPACITY,
   PRESS_GLOW_RADIUS,
   REDUCED_TRANSPARENCY_FILL,
@@ -501,6 +507,7 @@ function ShadowLuminanceProbe({ targetRef, onScheme }: ShadowLuminanceProbeProps
  */
 export function LiquidGlass({
   children,
+  displacement = false,
   displacementScale = DEFAULTS.displacementScale,
   blurAmount = DEFAULTS.blurAmount,
   saturation = DEFAULTS.saturation,
@@ -657,12 +664,28 @@ export function LiquidGlass({
   const effectiveAberration = prefersContrast ? 0 : aberrationIntensity;
 
   const measured = dimensions !== null && dimensions.width > 0 && dimensions.height > 0;
-  // Attach the filter only when refraction is supported AND we have real dims.
-  // `prefers-reduced-transparency: reduce` is ORTHOGONAL to the 3-tier gate: it
-  // force-drops live lensing on EVERY tier by reusing the existing no-filter path
-  // (no 4th tier, no geometry change), exactly as Firefox/WebKit already do.
-  const filterActive = canRefract && measured && !reducedTransparency;
+  // SVG displacement is now OPT-IN (plan 023). The DEFAULT look is the portable
+  // frosted recipe (white tint + blur()/saturate() + hairline ring + bevel) that
+  // renders identically in every engine; live refraction only attaches when the
+  // consumer explicitly sets `displacement` AND the browser can refract (Chromium)
+  // AND we have real dims. `prefers-reduced-transparency: reduce` stays ORTHOGONAL:
+  // it force-drops live lensing on EVERY tier by reusing the no-filter (frosted)
+  // path (no 4th tier, no geometry change), exactly as Firefox/WebKit already do.
+  // When `displacement` is false/unsupported the filter is silently a no-op and the
+  // surface renders the frosted base — a graceful fallback, never a broken box.
+  const filterActive = displacement && canRefract && measured && !reducedTransparency;
   const filterUrl = filterActive ? `url(#${filterId})` : null;
+
+  // The portable frosted DEFAULT look applies on the backdrop-filter tiers (1/2)
+  // whenever live refraction is NOT active and no a11y override owns the fill: a
+  // faint white tint (FROSTED_DEFAULT_FILL) plus a ~1px hairline ring
+  // (FROSTED_HAIRLINE_RING) layered over the blur()/saturate() backdrop. It is
+  // mutually exclusive with the refraction path (which carries its own look with
+  // no fill) and with the reduced-transparency / increased-contrast fills (which
+  // intentionally force a MORE opaque surface). Geometry is unchanged: the tint is
+  // a `background`, the ring an inset `box-shadow` prepended to the bevel.
+  const frostedDefault =
+    supportsBackdropFilter && !filterActive && !reducedTransparency && !prefersContrast;
 
   // Tiered render selector (plan 006). All tiers share IDENTICAL box geometry
   // (dimensions/padding/border-radius), so degrading between them never causes a
@@ -743,15 +766,23 @@ export function LiquidGlass({
   // Bevel rim variant keyed off prefers-color-scheme.
   const edgeShadow = getGlassEdgeShadow(prefersDark ? 'dark' : 'light');
 
-  // Increased contrast (plan 014): a SOLID, visible border the soft bevel can't
-  // provide. Drawn as an INSET box-shadow ring PREPENDED to the bevel so the box
-  // geometry is unchanged (no border-box growth, no padding loss → no layout
-  // shift). No-op unless the live hook is true, so default-off is unchanged.
-  const surfaceBoxShadow = prefersContrast
-    ? `inset 0 0 0 ${CONTRAST_BORDER_WIDTH}px ${
-        CONTRAST_BORDER_COLOR[prefersDark ? 'dark' : 'light']
-      }, ${edgeShadow}`
-    : edgeShadow;
+  // Surface inset box-shadow ring, PREPENDED to the bevel so box geometry is
+  // unchanged (no border-box growth, no padding loss → no layout shift):
+  //   - Increased contrast (plan 014): a SOLID 2px visible border the soft bevel
+  //     can't provide. No-op unless the live hook is true.
+  //   - Frosted DEFAULT (plan 023): a ~1px translucent-white hairline that defines
+  //     the frosted surface's perimeter (the Video.js recipe). Distinct from the
+  //     contrast ring by width (1px vs 2px), so the contrast-ring e2e/unit matchers
+  //     (which key on the 2px spread) never collide with it.
+  // Contrast wins when both could apply (frostedDefault is false under contrast).
+  let surfaceBoxShadow = edgeShadow;
+  if (prefersContrast) {
+    surfaceBoxShadow = `inset 0 0 0 ${CONTRAST_BORDER_WIDTH}px ${
+      CONTRAST_BORDER_COLOR[prefersDark ? 'dark' : 'light']
+    }, ${edgeShadow}`;
+  } else if (frostedDefault) {
+    surfaceBoxShadow = `inset 0 0 0 ${FROSTED_HAIRLINE_RING.width}px ${FROSTED_HAIRLINE_RING.color}, ${edgeShadow}`;
+  }
 
   // Hover brightens the highlight layers slightly.
   const specularCoreOpacity = hovered ? SPECULAR_CORE_OPACITY.hover : SPECULAR_CORE_OPACITY.rest;
@@ -803,8 +834,11 @@ export function LiquidGlass({
 
   // Surface fill selection. Independent cases, none of which change box
   // geometry:
-  //   - Default tiers 1/2 (backdrop-filter supported): NO fill — the blurred
-  //     backdrop carries the glass look. (Byte-for-byte unchanged.)
+  //   - Refraction active (displacement on, tiers 1/2): NO fill — the live SVG
+  //     refraction carries the glass look. (TIER-1 byte-for-byte unchanged.)
+  //   - Frosted DEFAULT (tiers 1/2, no refraction — plan 023): the faint white
+  //     tint (FROSTED_DEFAULT_FILL) layered over the blur()/saturate() backdrop,
+  //     giving the portable frosted recipe a subtle milky body (the Video.js look).
   //   - Default tier 3 (no backdrop-filter): the translucent ~0.55 solid fill so
   //     content stays legible instead of a transparent box. (Unchanged.)
   //   - Reduced transparency ON: a MORE-opaque scheme-aware fill on every tier —
@@ -823,6 +857,8 @@ export function LiquidGlass({
       : REDUCED_TRANSPARENCY_SOLID_FILL[scheme];
   } else if (!supportsBackdropFilter) {
     surfaceBackground = scheme === 'dark' ? 'rgba(30, 30, 35, 0.55)' : 'rgba(255, 255, 255, 0.55)';
+  } else if (frostedDefault) {
+    surfaceBackground = FROSTED_DEFAULT_FILL;
   }
 
   const surfaceStyle: CSSProperties = {

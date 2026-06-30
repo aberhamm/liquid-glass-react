@@ -36,6 +36,15 @@ const meta = {
       description: 'Content rendered inside the glass surface.',
       table: { category: 'Content' },
     },
+    displacement: {
+      control: 'boolean',
+      description:
+        'Opt into the live SVG refraction/displacement pass (web-only, Chromium). ' +
+        'When false (the default) the glass renders the portable frosted recipe ' +
+        'with no feDisplacementMap; when true and the browser can refract, the SVG ' +
+        'displacement filter is attached.',
+      table: { category: 'Refraction', defaultValue: { summary: 'false' } },
+    },
     displacementScale: {
       control: { type: 'range', min: 0, max: 200, step: 1 },
       description:
@@ -118,6 +127,7 @@ const meta = {
     mouseContainer: { control: false, table: { category: 'Controlled motion' } },
   },
   args: {
+    displacement: false,
     displacementScale: 70,
     blurAmount: 0.0625,
     saturation: 140,
@@ -327,6 +337,7 @@ export const Modes: Story = {
               }}
             >
               <LiquidGlass
+                displacement
                 mode={mode}
                 cornerRadius={28}
                 padding="28px 36px"
@@ -366,6 +377,58 @@ export const Modes: Story = {
  * is inherently reduced-motion-safe; the cursor-elastic follow on the glass
  * itself still demonstrates the refraction over real content.
  */
+/**
+ * Shared Showcase scene used by both the frosted-default `Showcase` story and the
+ * refraction-on `DisplacementShowcase` story, so the two pin the SAME geometry /
+ * content and differ ONLY by the `displacement` opt-in. e2e specs target each by
+ * story id; keeping one scene keeps the frosted and displacement pixel baselines
+ * comparable.
+ */
+const ShowcaseScene = ({ displacement = false }: { displacement?: boolean }): ReactElement => (
+  <PhotosAppBackdrop>
+    <div className="lg-showcase__stack">
+      <style>{SHOWCASE_CSS}</style>
+      <LiquidGlass
+        displacement={displacement}
+        cornerRadius={28}
+        padding="32px 36px"
+        displacementScale={80}
+        saturation={160}
+      >
+        <div style={{ color: '#fff', maxWidth: '22rem' }}>
+          <p
+            style={{
+              margin: '0 0 0.5rem',
+              fontSize: '0.75rem',
+              letterSpacing: '0.18em',
+              textTransform: 'uppercase',
+              opacity: 0.85,
+            }}
+          >
+            Refraction, live
+          </p>
+          <h2 style={{ margin: '0 0 0.5rem', fontSize: '1.5rem', lineHeight: 1.2 }}>
+            Light bends around the edges
+          </h2>
+          <p style={{ margin: 0, fontSize: '0.9375rem', lineHeight: 1.5, opacity: 0.92 }}>
+            Move your cursor across the panel to feel the elastic follow. The glass floats over the
+            photo grid so the displacement reads clearly over real content.
+          </p>
+        </div>
+      </LiquidGlass>
+
+      <LiquidGlass
+        displacement={displacement}
+        cornerRadius={999}
+        padding="14px 28px"
+        displacementScale={60}
+      >
+        <span style={{ color: '#fff', fontWeight: 600, fontSize: '1rem' }}>Get started</span>
+      </LiquidGlass>
+    </div>
+  </PhotosAppBackdrop>
+);
+
 export const Showcase: Story = {
   args: { children: null },
   parameters: {
@@ -378,46 +441,41 @@ export const Showcase: Story = {
     docs: {
       description: {
         story:
-          'Glass floating as a toolbar/card over a calm Photos app (a grid of ' +
-          'scenic thumbnails) so refraction edge-bending and cursor elasticity are ' +
-          'obvious over REAL app content. The grid is static (reduced-motion-safe); ' +
-          'move your cursor across the panel to feel the elastic follow.',
+          'The DEFAULT (frosted) look: glass floating as a toolbar/card over a calm ' +
+          'Photos app. Renders the portable frosted recipe (white tint + blur + ' +
+          'saturate + hairline ring + bevel) identically in every engine — NO SVG ' +
+          'refraction. See DisplacementShowcase for the Chromium opt-in refraction.',
       },
     },
   },
-  render: () => (
-    <PhotosAppBackdrop>
-      <div className="lg-showcase__stack">
-        <style>{SHOWCASE_CSS}</style>
-        <LiquidGlass cornerRadius={28} padding="32px 36px" displacementScale={80} saturation={160}>
-          <div style={{ color: '#fff', maxWidth: '22rem' }}>
-            <p
-              style={{
-                margin: '0 0 0.5rem',
-                fontSize: '0.75rem',
-                letterSpacing: '0.18em',
-                textTransform: 'uppercase',
-                opacity: 0.85,
-              }}
-            >
-              Refraction, live
-            </p>
-            <h2 style={{ margin: '0 0 0.5rem', fontSize: '1.5rem', lineHeight: 1.2 }}>
-              Light bends around the edges
-            </h2>
-            <p style={{ margin: 0, fontSize: '0.9375rem', lineHeight: 1.5, opacity: 0.92 }}>
-              Move your cursor across the panel to feel the elastic follow. The glass floats over
-              the photo grid so the displacement reads clearly over real content.
-            </p>
-          </div>
-        </LiquidGlass>
+  render: () => <ShowcaseScene />,
+};
 
-        <LiquidGlass cornerRadius={999} padding="14px 28px" displacementScale={60}>
-          <span style={{ color: '#fff', fontWeight: 600, fontSize: '1rem' }}>Get started</span>
-        </LiquidGlass>
-      </div>
-    </PhotosAppBackdrop>
-  ),
+/**
+ * The OPT-IN refraction look: the same Showcase scene with `displacement` enabled.
+ * On Chromium this attaches the SVG `feDisplacementMap` over `backdrop-filter`
+ * (live edge-bending); on Firefox/WebKit `displacement` is a silent no-op and the
+ * scene renders the same frosted base as `Showcase`. e2e specs target this story
+ * for the "url( present" refraction assertions and the displacement pixel baseline.
+ */
+export const DisplacementShowcase: Story = {
+  args: { children: null },
+  parameters: {
+    layout: 'fullscreen',
+    noBackdrop: true,
+    controls: { disable: true },
+    docs: {
+      description: {
+        story:
+          'Opt-in `displacement`: the Showcase scene with live SVG refraction. On ' +
+          'Chromium the backdrop bends at the glass edges (feDisplacementMap over ' +
+          'backdrop-filter); on Firefox/WebKit displacement is a no-op and it falls ' +
+          'back to the identical frosted base. This is the web-only enhancement over ' +
+          'the portable default.',
+      },
+    },
+  },
+  render: () => <ShowcaseScene displacement />,
 };
 
 const SHOWCASE_CSS = `
@@ -539,6 +597,7 @@ const DraggableStory = (): ReactElement => {
         }}
       >
         <LiquidGlass
+          displacement
           cornerRadius={28}
           padding="28px 32px"
           displacementScale={100}
@@ -937,6 +996,7 @@ export const CheapVsReal: Story = {
 
       <div className="lg-cvr__cell">
         <LiquidGlass
+          displacement
           cornerRadius={28}
           padding="28px 32px"
           displacementScale={110}
@@ -1335,7 +1395,7 @@ export const CrossBrowser: Story = {
 
       <div className="lg-xb__grid">
         <figure className="lg-xb__cell">
-          <LiquidGlass cornerRadius={24} padding="28px 32px" displacementScale={80}>
+          <LiquidGlass displacement cornerRadius={24} padding="28px 32px" displacementScale={80}>
             {glassLabel('Full refraction')}
           </LiquidGlass>
           <figcaption>

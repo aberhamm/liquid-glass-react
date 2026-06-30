@@ -29,10 +29,12 @@
 import { expect, test } from '@playwright/test';
 
 // ---------------------------------------------------------------------------
-// Showcase story — full refraction check (Chromium) + degradation (FF/WebKit)
+// Showcase story — FROSTED DEFAULT (plan 023). No SVG refraction on ANY engine;
+// the surface renders the portable frosted recipe (blur + saturate + tint +
+// hairline). This is the common-case look and the regenerated pixel baseline.
 // ---------------------------------------------------------------------------
 
-test.describe('Showcase story', () => {
+test.describe('Showcase story (frosted default)', () => {
   let consoleErrors: string[] = [];
 
   test.beforeEach(async ({ page }) => {
@@ -46,7 +48,87 @@ test.describe('Showcase story', () => {
     await page.waitForSelector('[data-lg-surface]', { state: 'visible' });
   });
 
-  // Chromium-only: assert the full refraction effect is active
+  // All engines: the DEFAULT no longer refracts — no url( in backdrop-filter, but
+  // the frosted blur()/saturate() recipe IS present (the portable look).
+  test('all engines: default backdrop-filter has NO url( but keeps blur()/saturate()', async ({
+    page,
+  }) => {
+    const surface = page.locator('[data-lg-surface]').first();
+    await expect(surface).toBeVisible();
+
+    // Allow mount + capability detection to settle.
+    await page.waitForTimeout(500);
+
+    const backdropFilter = await surface.evaluate(
+      (el) => (el as HTMLElement).style.backdropFilter || '',
+    );
+    // Frosted default: NO SVG displacement url(, but the blur+saturate backdrop.
+    expect(backdropFilter).not.toContain('url(');
+    expect(backdropFilter).toContain('blur(');
+    expect(backdropFilter).toContain('saturate(');
+    // No inline SVG <filter> is rendered on the default path, on any engine.
+    await expect(page.locator('filter[id^="lg-"]')).toHaveCount(0);
+
+    const box = await surface.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box?.width).toBeGreaterThan(0);
+    expect(box?.height).toBeGreaterThan(0);
+
+    expect(consoleErrors).toHaveLength(0);
+  });
+
+  // Chromium-only: blocking pixel-diff baseline for the FROSTED-DEFAULT surface.
+  test('chromium: frosted-default glass surface visual baseline (pixel-diff)', async ({
+    page,
+    browserName,
+  }) => {
+    test.skip(browserName !== 'chromium', 'Pixel baseline pinned to chromium');
+    // The committed baseline (showcase-glass-chromium-chromium-darwin.png) is
+    // platform-specific. On Linux CI it can't match a darwin baseline, so skip
+    // there to keep CI green while preserving the blocking visual gate locally
+    // (macOS / darwin). To run this on CI, commit a Linux baseline and remove
+    // this guard. See playwright.config.ts (platform-suffixed snapshot paths).
+    test.skip(
+      process.platform !== 'darwin',
+      'Visual baseline is darwin-pinned; needs a Linux baseline to run on CI',
+    );
+
+    const surface = page.locator('[data-lg-surface]').first();
+    await expect(surface).toBeVisible();
+    // Let mount + capability detection settle so the frosted fill/blur is stable.
+    await page.waitForTimeout(500);
+
+    // Screenshot the glass surface element (not the whole animated page)
+    // to avoid backdrop-animation flakiness.
+    await expect(surface).toHaveScreenshot('showcase-glass-chromium.png', {
+      maxDiffPixelRatio: 0.03,
+      // Disable CSS animations for a stable snapshot
+      animations: 'disabled',
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DisplacementShowcase story — OPT-IN refraction (plan 023). `displacement` is
+// enabled, so Chromium attaches the SVG filter (url( present) and FF/WebKit fall
+// back to the identical frosted base (displacement is a silent no-op).
+// ---------------------------------------------------------------------------
+
+test.describe('DisplacementShowcase story (opt-in refraction)', () => {
+  let consoleErrors: string[] = [];
+
+  test.beforeEach(async ({ page }) => {
+    consoleErrors = [];
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') consoleErrors.push(msg.text());
+    });
+    page.on('pageerror', (err) => consoleErrors.push(err.message));
+
+    await page.goto('/iframe.html?id=components-liquidglass--displacement-showcase&viewMode=story');
+    await page.waitForSelector('[data-lg-surface]', { state: 'visible' });
+  });
+
+  // Chromium-only: with displacement opted-in, the full refraction effect is active
   test('chromium: backdrop-filter contains url( and SVG filter is present', async ({
     page,
     browserName,
@@ -74,14 +156,13 @@ test.describe('Showcase story', () => {
     await expect(svgFilter).toBeAttached();
   });
 
-  // Chromium-only: blocking pixel-diff baseline for the glass surface region
-  test('chromium: glass surface visual baseline (pixel-diff)', async ({ page, browserName }) => {
+  // Chromium-only: blocking pixel-diff baseline for the DISPLACEMENT-ON surface so
+  // refraction visual regressions stay covered alongside the frosted baseline.
+  test('chromium: displacement-on glass surface visual baseline (pixel-diff)', async ({
+    page,
+    browserName,
+  }) => {
     test.skip(browserName !== 'chromium', 'Pixel baseline pinned to chromium');
-    // The committed baseline (showcase-glass-chromium-chromium-darwin.png) is
-    // platform-specific. On Linux CI it can't match a darwin baseline, so skip
-    // there to keep CI green while preserving the blocking visual gate locally
-    // (macOS / darwin). To run this on CI, commit a Linux baseline and remove
-    // this guard. See playwright.config.ts (platform-suffixed snapshot paths).
     test.skip(
       process.platform !== 'darwin',
       'Visual baseline is darwin-pinned; needs a Linux baseline to run on CI',
@@ -101,17 +182,14 @@ test.describe('Showcase story', () => {
       )
       .toContain('url(');
 
-    // Screenshot the glass surface element (not the whole animated page)
-    // to avoid backdrop-animation flakiness. The refraction edge effect
-    // is visible here even without the full backdrop motion.
-    await expect(surface).toHaveScreenshot('showcase-glass-chromium.png', {
+    await expect(surface).toHaveScreenshot('displacement-showcase-glass-chromium.png', {
       maxDiffPixelRatio: 0.03,
-      // Disable CSS animations for a stable snapshot
       animations: 'disabled',
     });
   });
 
-  // Firefox + WebKit: assert graceful degradation (this passing IS the assertion)
+  // Firefox + WebKit: displacement is a silent no-op — assert graceful degradation
+  // (this passing IS the assertion that the frosted base renders identically).
   test('firefox/webkit: fallback — no url( in backdrop-filter, non-zero box, zero errors', async ({
     page,
     browserName,
@@ -173,9 +251,11 @@ test.describe('Modes smoke (Chromium)', () => {
   test('shader mode: feImage carries a non-empty data: URL', async ({ page, browserName }) => {
     test.skip(browserName !== 'chromium', 'Mode smoke gated to Chromium');
 
-    // Navigate to Playground with mode=shader arg override
+    // Navigate to Playground with mode=shader AND displacement enabled (a mode arg
+    // alone no longer attaches the filter — displacement is the opt-in gate now).
+    // Storybook URL args: ';'-separated pairs, booleans encoded as `!true`.
     await page.goto(
-      '/iframe.html?id=components-liquidglass--playground&viewMode=story&args=mode:shader',
+      '/iframe.html?id=components-liquidglass--playground&viewMode=story&args=mode:shader;displacement:!true',
     );
     await page.waitForSelector('[data-lg-surface]', { state: 'visible' });
     await waitForFilterAttached(page);
@@ -206,7 +286,7 @@ test.describe('Modes smoke (Chromium)', () => {
     test.skip(browserName !== 'chromium', 'Mode smoke gated to Chromium');
 
     await page.goto(
-      '/iframe.html?id=components-liquidglass--playground&viewMode=story&args=mode:turbulence',
+      '/iframe.html?id=components-liquidglass--playground&viewMode=story&args=mode:turbulence;displacement:!true',
     );
     await page.waitForSelector('[data-lg-surface]', { state: 'visible' });
     await waitForFilterAttached(page);
@@ -234,7 +314,7 @@ test.describe('Modes smoke (Chromium)', () => {
     test.skip(browserName !== 'chromium', 'Mode smoke gated to Chromium');
 
     await page.goto(
-      '/iframe.html?id=components-liquidglass--playground&viewMode=story&args=mode:turbulence',
+      '/iframe.html?id=components-liquidglass--playground&viewMode=story&args=mode:turbulence;displacement:!true',
     );
     await page.waitForSelector('[data-lg-surface]', { state: 'visible' });
     await waitForFilterAttached(page);

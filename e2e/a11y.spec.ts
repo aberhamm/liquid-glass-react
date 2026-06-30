@@ -54,7 +54,10 @@ test.describe('prefers-reduced-transparency (Showcase)', () => {
     const client = await page.context().newCDPSession(page);
     await setReducedTransparency(client, 'reduce');
 
-    await page.goto('/iframe.html?id=components-liquidglass--showcase&viewMode=story');
+    // Target the displacement-ENABLED story: it would otherwise carry url( on
+    // Chromium, so asserting reduce-transparency DROPS it is meaningful (the
+    // frosted-default Showcase has no url( to begin with — a vacuous pass).
+    await page.goto('/iframe.html?id=components-liquidglass--displacement-showcase&viewMode=story');
     await page.waitForSelector('[data-lg-surface]', { state: 'visible' });
 
     const surface = page.locator('[data-lg-surface]').first();
@@ -101,7 +104,9 @@ test.describe('prefers-reduced-transparency (Showcase)', () => {
     const client = await page.context().newCDPSession(page);
     await setReducedTransparency(client, 'no-preference');
 
-    await page.goto('/iframe.html?id=components-liquidglass--showcase&viewMode=story');
+    // Control on the displacement-ENABLED story: with the setting OFF, Chromium
+    // still attaches the refraction url( (guards the branch from firing always).
+    await page.goto('/iframe.html?id=components-liquidglass--displacement-showcase&viewMode=story');
     await page.waitForSelector('[data-lg-surface]', { state: 'visible' });
 
     const surface = page.locator('[data-lg-surface]').first();

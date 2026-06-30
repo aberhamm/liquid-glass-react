@@ -1,13 +1,16 @@
 ---
 id: 023
 title: Make frosted glass the web default and SVG displacement opt-in
-status: in-progress
+status: done
 blocked-by: [022]
 priority:
 goal: cross-browser-expo-liquid-glass
 allows-migrations: false
 needs-review: none
 created: 2026-06-22
+completed: 2026-06-30
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -162,3 +165,19 @@ Testing approach: browser-based
 - [cmd] `pnpm e2e`
 - [assert] `grep -nE "displacement" src/liquid-glass.tsx` outputs a match (prop is consumed)
 - [manual] Visually confirm the default frosted look (tint + hairline + blur) and that `displacement` toggles the refraction on Chromium only.
+
+## Implementation Notes
+
+Flipped the web default to the portable frosted recipe and made SVG displacement opt-in via the `displacement` prop, sourcing the tint + hairline from plan-022 tokens with no geometry change. `filterActive` now gates on `displacement && canRefract && measured && !reducedTransparency`; a `frostedDefault` gate applies `FROSTED_DEFAULT_FILL` (tint) + a 1px `FROSTED_HAIRLINE_RING` inset box-shadow on tiers 1/2 when not refracting and no a11y fill owns the surface. Owned the breaking fallout in lockstep: retargeted 2 e2e specs (refraction.spec.ts — frosted-default Showcase describe + new DisplacementShowcase describe + 3 Modes smoke tests now appending `;displacement:!true`; a11y.spec.ts — both reduce-transparency tests repointed to the displacement story), regenerated 1 Chromium pixel baseline and added 1 new displacement baseline, gated all unit refraction assertions behind displacement (213 unit tests, full 3-browser e2e green). Added a `displacement` story control, a shared `ShowcaseScene`, and a new `DisplacementShowcase` story (default `Showcase` stays frosted). No deviations.
+
+**Files changed:**
+
+- `src/liquid-glass.tsx` (modified)
+- `src/liquid-glass.test.tsx` (modified)
+- `src/liquid-glass.stories.tsx` (modified)
+- `e2e/refraction.spec.ts` (modified)
+- `e2e/a11y.spec.ts` (modified)
+- `e2e/refraction.spec.ts-snapshots/showcase-glass-chromium-chromium-darwin.png` (modified, regenerated)
+- `e2e/refraction.spec.ts-snapshots/displacement-showcase-glass-chromium-chromium-darwin.png` (created)
+
+**Commit:** `a2d520b` — `feat(liquid-glass)!: frosted glass is now the web default; SVG displacement opt-in`

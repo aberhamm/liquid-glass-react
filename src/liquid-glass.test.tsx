@@ -214,9 +214,9 @@ describe('<LiquidGlass> rendering', () => {
 });
 
 describe('capability gating (filter presence)', () => {
-  it('attaches filter: url(#id) in backdrop-filter when canRefract is true and dims measured', () => {
+  it('attaches filter: url(#id) in backdrop-filter when displacement is on, canRefract is true and dims measured', () => {
     const { container } = render(
-      <LiquidGlass>
+      <LiquidGlass displacement>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -228,6 +228,29 @@ describe('capability gating (filter presence)', () => {
     expect(match).not.toBeNull();
     const id = match?.[1] as string;
     expect(container.querySelector(`#${id}`)).not.toBeNull();
+  });
+
+  it('DEFAULT (no displacement) on a refraction-capable engine is frosted: NO url(/no <filter>, carries the frosted tint fill + hairline ring', () => {
+    // canRefract is true (default mock) but displacement is unset → frosted default.
+    const { container } = render(
+      <LiquidGlass>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    const surface = getSurface(container);
+    const value = surface.style.backdropFilter;
+    // No SVG displacement: no url(, no <filter>, but the frosted blur/saturate recipe.
+    expect(value).not.toMatch(/url\(#/);
+    expect(value).toMatch(/blur\(/);
+    expect(value).toMatch(/saturate\(/);
+    expect(container.querySelector('filter')).toBeNull();
+    // The frosted tint fill (FROSTED_DEFAULT_FILL ≈ rgba(255,255,255,0.1)).
+    expect(styleOf(surface, 'background')).toBe('rgba(255, 255, 255, 0.1)');
+    // The ~1px hairline ring (FROSTED_HAIRLINE_RING) is PREPENDED to the bevel.
+    expect(surface.style.boxShadow).toMatch(/^inset 0(px)? 0(px)? 0(px)? 1px rgba\(255, 255, 255/);
+    // The bevel still follows the hairline (additive, not a replacement): a
+    // SECOND comma-separated inset layer (the edgeShadow bevel) comes after it.
+    expect(surface.style.boxShadow).toMatch(/1px rgba\([^)]*\), inset /);
   });
 
   it('omits url(#id) when canRefract is false but keeps blur/saturate', () => {
@@ -249,7 +272,7 @@ describe('capability gating (filter presence)', () => {
 
   it('uses the sanitized (colon-free) filter id', () => {
     const { container } = render(
-      <LiquidGlass>
+      <LiquidGlass displacement>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -261,11 +284,12 @@ describe('capability gating (filter presence)', () => {
   });
 
   it('does not attach a filter when layout reports zero dimensions', () => {
-    // canRefract is true (default), but the element measures as 0x0 — quantize()
-    // would otherwise floor that to a bogus 16x16 cell. No filter should attach.
+    // displacement on + canRefract true, but the element measures as 0x0 —
+    // quantize() would otherwise floor that to a bogus 16x16 cell. No filter
+    // should attach (the zero-dim gate, not the displacement gate, is exercised).
     stubLayout(0, 0);
     const { container } = render(
-      <LiquidGlass>
+      <LiquidGlass displacement>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -277,7 +301,7 @@ describe('capability gating (filter presence)', () => {
 describe('feDisplacementMap configuration', () => {
   it('uses xChannelSelector="R" and yChannelSelector="B"', () => {
     const { container } = render(
-      <LiquidGlass>
+      <LiquidGlass displacement>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -291,7 +315,7 @@ describe('feDisplacementMap configuration', () => {
 
   it('uses primitiveUnits="userSpaceOnUse" (pixel space, not objectBoundingBox)', () => {
     const { container } = render(
-      <LiquidGlass>
+      <LiquidGlass displacement>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -309,7 +333,7 @@ describe('chromatic aberration scaling', () => {
 
   it('scales per-channel offsets with aberrationIntensity', () => {
     const low = render(
-      <LiquidGlass aberrationIntensity={1}>
+      <LiquidGlass displacement aberrationIntensity={1}>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -317,7 +341,7 @@ describe('chromatic aberration scaling', () => {
     low.unmount();
 
     const high = render(
-      <LiquidGlass aberrationIntensity={10}>
+      <LiquidGlass displacement aberrationIntensity={10}>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -334,7 +358,7 @@ describe('chromatic aberration scaling', () => {
 
   it('recombines additively via feComposite arithmetic (no screen blend)', () => {
     const { container } = render(
-      <LiquidGlass>
+      <LiquidGlass displacement>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -357,7 +381,7 @@ describe('backdrop-filter composition', () => {
     // filter, so the backdrop-filter string is JUST url(#id) and the blur +
     // saturation are folded into the SVG filter's final primitives instead.
     const { container } = render(
-      <LiquidGlass saturation={200} blurAmount={0.5}>
+      <LiquidGlass displacement saturation={200} blurAmount={0.5}>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -374,7 +398,7 @@ describe('backdrop-filter composition', () => {
 
   it('increases the SVG filter blur when overLight is true (url path)', () => {
     const base = render(
-      <LiquidGlass blurAmount={0.5} overLight={false}>
+      <LiquidGlass displacement blurAmount={0.5} overLight={false}>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -382,7 +406,7 @@ describe('backdrop-filter composition', () => {
     base.unmount();
 
     const lit = render(
-      <LiquidGlass blurAmount={0.5} overLight>
+      <LiquidGlass displacement blurAmount={0.5} overLight>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -404,7 +428,7 @@ describe('overLight halves the effective displacement scale', () => {
 
   it('halves the G (center) channel scale when overLight is true vs false', () => {
     const off = render(
-      <LiquidGlass displacementScale={80} overLight={false}>
+      <LiquidGlass displacement displacementScale={80} overLight={false}>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -412,7 +436,7 @@ describe('overLight halves the effective displacement scale', () => {
     off.unmount();
 
     const on = render(
-      <LiquidGlass displacementScale={80} overLight>
+      <LiquidGlass displacement displacementScale={80} overLight>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -427,7 +451,7 @@ describe('overLight halves the effective displacement scale', () => {
 describe('turbulence mode', () => {
   it('renders feTurbulence and no feImage / no data: URL', () => {
     const { container } = render(
-      <LiquidGlass mode="turbulence">
+      <LiquidGlass displacement mode="turbulence">
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -441,7 +465,7 @@ describe('turbulence mode', () => {
 
   it('still applies displacement and aberration in turbulence mode', () => {
     const { container } = render(
-      <LiquidGlass mode="turbulence" displacementScale={50} aberrationIntensity={5}>
+      <LiquidGlass displacement mode="turbulence" displacementScale={50} aberrationIntensity={5}>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -456,7 +480,7 @@ describe('turbulence mode', () => {
 describe('non-turbulence modes use feImage with a generated map', () => {
   it('renders an feImage whose href is a PNG data URL', () => {
     const { container } = render(
-      <LiquidGlass mode="standard">
+      <LiquidGlass displacement mode="standard">
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -471,7 +495,7 @@ describe('non-turbulence modes use feImage with a generated map', () => {
 describe('content isolation', () => {
   it('does not render children inside the element carrying the filter', () => {
     const { container, getByTestId } = render(
-      <LiquidGlass>
+      <LiquidGlass displacement>
         <span data-testid="child">crisp label</span>
       </LiquidGlass>,
     );
@@ -601,10 +625,10 @@ describe('graceful degradation — capability matrix (plan 006)', () => {
     };
   }
 
-  it('TIER 1 (full): canRefract+backdrop-filter → url(#id) refraction + SVG <filter>', () => {
+  it('TIER 1 (full): displacement + canRefract + backdrop-filter → url(#id) refraction + SVG <filter>', () => {
     mockCapabilities.mockReturnValue(caps(true));
     const { container } = render(
-      <LiquidGlass>
+      <LiquidGlass displacement>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -637,10 +661,12 @@ describe('graceful degradation — capability matrix (plan 006)', () => {
     expect(bf).not.toMatch(/url\(#/);
     expect(container.querySelector('filter')).toBeNull();
     expect(container.innerHTML).not.toMatch(/url\(#lg-/);
-    // The inset-shadow glass bevel MUST be present in the fallback.
+    // The inset-shadow glass bevel MUST be present in the fallback, now with the
+    // frosted hairline ring (plan 023) prepended to it.
     expect(surface.style.boxShadow).toMatch(/inset/);
-    // No solid fill — the blurred backdrop carries the frosted look.
-    expect(styleOf(surface, 'background')).toBe('');
+    expect(surface.style.boxShadow).toMatch(/^inset 0(px)? 0(px)? 0(px)? 1px rgba\(255, 255, 255/);
+    // The frosted DEFAULT tint fill (plan 023) is layered over the blurred backdrop.
+    expect(styleOf(surface, 'background')).toBe('rgba(255, 255, 255, 0.1)');
   });
 
   it('emits the -webkit-backdrop-filter prefix alongside backdrop-filter (frosted tier)', () => {
@@ -743,11 +769,12 @@ describe('prefers-reduced-transparency (plan 013)', () => {
   }
 
   it('drops the url(#id) refraction on the FULL tier when reduced-transparency is on', () => {
-    // canRefract true (Chromium), but reduced transparency forces the no-filter path.
+    // displacement on + canRefract true (Chromium), but reduced transparency forces
+    // the no-filter path — so this meaningfully asserts the url( is DROPPED.
     mockCapabilities.mockReturnValue(caps(true));
     installMatchMedia({ reducedTransparency: true });
     const { container } = render(
-      <LiquidGlass>
+      <LiquidGlass displacement>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -808,18 +835,19 @@ describe('prefers-reduced-transparency (plan 013)', () => {
     expect(styleOf(surface, 'background')).toMatch(/rgba\(/);
   });
 
-  it('renders byte-for-byte identical to today when reduced-transparency is OFF', () => {
-    // Default install (both axes off) must reproduce the existing full-tier output.
+  it('keeps the url( refraction on the displacement tier when reduced-transparency is OFF', () => {
+    // With displacement on and reduced-transparency OFF, the full-tier refraction
+    // is present (the branch does not fire unconditionally).
     mockCapabilities.mockReturnValue(caps(true));
     installMatchMedia();
     const { container } = render(
-      <LiquidGlass>
+      <LiquidGlass displacement>
         <span>hi</span>
       </LiquidGlass>,
     );
     const surface = getSurface(container);
     const bf = styleOf(surface, 'backdropFilter');
-    // Refraction present, no extra fill — exactly the TIER 1 invariant.
+    // Refraction present, no extra fill — exactly the TIER 1 (refraction) invariant.
     expect(bf).toMatch(/url\(#lg-[^)]+\)/);
     expect(styleOf(surface, 'background')).toBe('');
     expect(container.querySelector('filter')).not.toBeNull();
@@ -936,7 +964,7 @@ describe('prefers-contrast: more (plan 014)', () => {
     mockCapabilities.mockReturnValue(caps(true));
     installMatchMedia({ contrastMore: true });
     const { container } = render(
-      <LiquidGlass>
+      <LiquidGlass displacement>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -945,7 +973,7 @@ describe('prefers-contrast: more (plan 014)', () => {
     expect(bg).toMatch(/rgba\(/);
     expect(bg).not.toBe('');
     // The blur is retained — this is a fill layered over it, not a tier change.
-    // On the canRefract (url) tier the blur lives in the SVG filter, not CSS.
+    // On the displacement (url) tier the blur lives in the SVG filter, not CSS.
     expect(styleOf(surface, 'backdropFilter')).toMatch(/url\(#/);
     expect(filterBlurPx(container)).toBeGreaterThan(0);
   });
@@ -954,11 +982,11 @@ describe('prefers-contrast: more (plan 014)', () => {
     mockCapabilities.mockReturnValue(caps(true));
     installMatchMedia({ contrastMore: true });
     const { container } = render(
-      <LiquidGlass saturation={200}>
+      <LiquidGlass displacement saturation={200}>
         <span>hi</span>
       </LiquidGlass>,
     );
-    // On the canRefract (url) tier saturation lives in the SVG filter, not CSS.
+    // On the displacement (url) tier saturation lives in the SVG filter, not CSS.
     expect(filterSaturatePercent(container)).toBe(100);
     expect(filterSaturatePercent(container)).not.toBe(200);
   });
@@ -967,7 +995,7 @@ describe('prefers-contrast: more (plan 014)', () => {
     mockCapabilities.mockReturnValue(caps(true));
     installMatchMedia({ contrastMore: true });
     const { container } = render(
-      <LiquidGlass aberrationIntensity={10}>
+      <LiquidGlass displacement aberrationIntensity={10}>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -1022,18 +1050,18 @@ describe('prefers-contrast: more (plan 014)', () => {
     expect(styleOf(surface, 'background')).toMatch(/rgba\(/);
   });
 
-  it('renders byte-for-byte identical to today when contrast is OFF', () => {
+  it('does not add the contrast treatment to the displacement tier when contrast is OFF', () => {
     mockCapabilities.mockReturnValue(caps(true));
     installMatchMedia();
     const { container } = render(
-      <LiquidGlass saturation={200} aberrationIntensity={10}>
+      <LiquidGlass displacement saturation={200} aberrationIntensity={10}>
         <span>hi</span>
       </LiquidGlass>,
     );
     const surface = getSurface(container);
     const bf = styleOf(surface, 'backdropFilter');
     // Refraction present, decorative saturation honored (in the SVG filter on
-    // the url tier), no extra fill, no ring.
+    // the url tier), no extra fill, no solid 2px contrast ring.
     expect(bf).toMatch(/url\(#lg-[^)]+\)/);
     expect(filterSaturatePercent(container)).toBe(200);
     expect(styleOf(surface, 'background')).toBe('');
@@ -1338,7 +1366,7 @@ describe('adaptiveTint: content-adaptive auto light/dark (plan 018)', () => {
   it('is OFF by default: never samples and renders byte-for-byte unchanged', () => {
     setLuminance('light'); // even with a reading available, default-off ignores it
     const { container } = render(
-      <LiquidGlass saturation={200}>
+      <LiquidGlass displacement saturation={200}>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -1357,7 +1385,7 @@ describe('adaptiveTint: content-adaptive auto light/dark (plan 018)', () => {
   it('maps a LIGHT backdrop to the light treatment (overLight-equivalent)', () => {
     setLuminance('light');
     const { container } = render(
-      <LiquidGlass adaptiveTint>
+      <LiquidGlass displacement adaptiveTint>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -1370,7 +1398,7 @@ describe('adaptiveTint: content-adaptive auto light/dark (plan 018)', () => {
   it('maps a DARK backdrop to the default (non-overLight) treatment', () => {
     setLuminance('dark');
     const { container } = render(
-      <LiquidGlass adaptiveTint>
+      <LiquidGlass displacement adaptiveTint>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -1385,7 +1413,7 @@ describe('adaptiveTint: content-adaptive auto light/dark (plan 018)', () => {
     // Backdrop samples DARK, but the author explicitly set overLight — manual wins.
     setLuminance('dark');
     const { container } = render(
-      <LiquidGlass adaptiveTint overLight>
+      <LiquidGlass displacement adaptiveTint overLight>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -1396,7 +1424,7 @@ describe('adaptiveTint: content-adaptive auto light/dark (plan 018)', () => {
   it('PRECEDENCE: explicit overLight={false} also wins (auto cannot flip it on)', () => {
     setLuminance('light');
     const { container } = render(
-      <LiquidGlass adaptiveTint overLight={false}>
+      <LiquidGlass displacement adaptiveTint overLight={false}>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -1408,7 +1436,7 @@ describe('adaptiveTint: content-adaptive auto light/dark (plan 018)', () => {
     setLuminance(null); // unsampled (taint / no-canvas / SSR)
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { container } = render(
-      <LiquidGlass adaptiveTint>
+      <LiquidGlass displacement adaptiveTint>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -1425,7 +1453,7 @@ describe('adaptiveTint: content-adaptive auto light/dark (plan 018)', () => {
     setLuminance('light');
     installMatchMedia({ contrastMore: true });
     const { container } = render(
-      <LiquidGlass adaptiveTint>
+      <LiquidGlass displacement adaptiveTint>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -1608,7 +1636,7 @@ describe('variant: regular vs clear (plan 019)', () => {
   it("'clear' force-disables adaptivity: adaptiveTint is a NO-OP (never samples, no ink flip)", () => {
     setLuminance('light'); // a verdict is available, but Clear must ignore it
     const { container } = render(
-      <LiquidGlass variant="clear" adaptiveTint>
+      <LiquidGlass displacement variant="clear" adaptiveTint>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -1624,7 +1652,7 @@ describe('variant: regular vs clear (plan 019)', () => {
   it("'clear' + explicit overLight still nudges legibility but does NOT re-enable adaptivity", () => {
     setLuminance('dark'); // would matter only if the adaptive path were active
     const { container } = render(
-      <LiquidGlass variant="clear" adaptiveTint overLight>
+      <LiquidGlass displacement variant="clear" adaptiveTint overLight>
         <span>hi</span>
       </LiquidGlass>,
     );
@@ -1637,7 +1665,7 @@ describe('variant: regular vs clear (plan 019)', () => {
   it("'regular' + adaptiveTint keeps the plan-018 adaptive behavior (it samples and flips ink)", () => {
     setLuminance('light');
     const { container } = render(
-      <LiquidGlass variant="regular" adaptiveTint>
+      <LiquidGlass displacement variant="regular" adaptiveTint>
         <span>hi</span>
       </LiquidGlass>,
     );
