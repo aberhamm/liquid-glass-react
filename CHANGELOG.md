@@ -4,6 +4,56 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.0] - 2026-07-01
+
+Cross-browser + Expo round. **This changes the default web look** (see Breaking),
+and adds a React Native / Expo render target from the same install.
+
+### Version bump
+
+`0.1.0` → **`0.2.0`** — a **minor** bump. The default render changed
+(Chromium refraction → portable frosted), which is a breaking *default-look*
+change; but the package is pre-1.0 (`0.x`), so per SemVer a breaking change is
+expressed as a **minor** bump rather than a major.
+
+### Breaking
+
+- **Frosted is now the default web look (was Chromium refraction).** The default
+  `<LiquidGlass>` render is the portable frosted `backdrop-filter` surface in every
+  engine — Chrome, Safari/WebKit, and Firefox — instead of live-backdrop
+  refraction in Chromium. **To restore the old look, add the `displacement` prop.**
+  Box geometry is unchanged, so layout never shifts.
+
+### Added
+
+- **Opt-in `displacement` (Chromium live-backdrop refraction).** Pass
+  `displacement` to bend the **live page** behind the glass via
+  `backdrop-filter: url()`. Chromium-only; Firefox and Safari/WebKit silently fall
+  back to the frosted surface.
+- **Cross-browser refraction (`refract` / `size` / `center` / `behind`).** A new
+  path applies the SVG displacement as an element `filter: url()` on a **copy** of
+  content, so a real refractive lens renders in Chrome, Safari **and** Firefox. Use
+  `size`/`center` to refract a copy of the glass's own children in place, or
+  `refract={node}` to float a lens over foreign content (`behind` fills the bleed).
+  Distinct from `displacement`, and the two compose.
+- **Expo / React Native support.** The same `<LiquidGlass>` import resolves to a
+  native (`expo-blur`) frosted build under Metro via the `react-native` export
+  condition. New **optional** peer deps `expo-blur` and `expo-linear-gradient`
+  (plus `react-native`), all marked `optional` in `peerDependenciesMeta`, so
+  web-only consumers never install them. `displacement`/`refract`/`size`/`center`/
+  `behind` and the other web-only props are documented no-ops on native; the native
+  primitive uses `onPress` and `style?: ViewStyle`. iOS is the quality bar; Android
+  is best-effort.
+
+### Notes
+
+- The prebuilt `GlassButton`, `GlassCard`, and `GlassSegmentedControl` are
+  **web-only this round** — they are not part of the native barrel
+  (`src/index.native.ts`).
+- README gains Web usage, Expo / React Native, and a "What works where" support
+  matrix, plus API-reference entries for `displacement`/`refract`/`size`/`center`/
+  `behind`.
+
 ## [Unreleased] - 2026-06-18
 
 Apple-tier enhancement round. Every new behavior is **additive and opt-in** —

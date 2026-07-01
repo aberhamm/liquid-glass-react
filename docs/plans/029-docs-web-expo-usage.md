@@ -1,13 +1,16 @@
 ---
 id: 029
 title: Document web + Expo usage, displacement opt-in, and peer-dep install
-status: in-progress
+status: done
 blocked-by: [023, 025, 030]
 priority:
 goal: cross-browser-expo-liquid-glass
 allows-migrations: false
 needs-review: none
 created: 2026-06-22
+completed: 2026-07-01
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -76,3 +79,15 @@ Testing approach: unit-only
 - [assert] `grep -niE "displacement" README.md` outputs matches
 - [assert] `grep -niE "expo-blur" README.md` outputs a match (peer-dep install documented)
 - [cmd] `pnpm pack:check`
+
+## Implementation Notes
+
+Documented the shipped web + Expo API accurately against src/types.ts, src/index.native.ts, and package.json. README now leads with frosted-as-default, adds a "Web usage" section distinguishing `displacement` (Chromium live-page bend) from cross-browser `refract`/`size`/`center`/`behind` (element filter on a copy, all engines), an "Expo / React Native" section with the optional peer-dep install line (`npx expo install expo-blur expo-linear-gradient`) and native no-op notes, a "What works where" matrix, reframed "Browser support", and new API-reference rows. Bumped 0.1.0 → 0.2.0 (minor, since a pre-1.0 breaking default-look change is expressed as a minor bump) with a new CHANGELOG `[0.2.0]` entry above the intact existing `[Unreleased] - 2026-06-18` block. pack:check/typecheck/224 tests all green.
+
+**Files changed:**
+
+- `README.md` (modified)
+- `CHANGELOG.md` (modified)
+- `package.json` (modified — version 0.1.0 → 0.2.0)
+
+**Commit:** `6e2a789` — `docs: document web + Expo usage, displacement opt-in, cross-browser refraction; v0.2.0`

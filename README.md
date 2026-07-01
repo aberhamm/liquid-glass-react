@@ -12,15 +12,23 @@ dependencies.
 > the *prop surface and intent* — not the code. No source was copied; see
 > [`LICENSE`](./LICENSE) and [`docs/PARITY.md`](./docs/PARITY.md).
 
-- **Full refraction in Chromium** — SVG `feDisplacementMap` composited over a
-  blurred, saturated backdrop, plus chromatic aberration and elastic motion.
-- **Graceful fallback in Firefox & Safari/WebKit** — a frosted surface (blur +
-  saturate + inset-shadow glass edge + rim + elastic motion) with *identical box
-  geometry*, so degrading never shifts layout.
-- **Solid translucent fallback** where `backdrop-filter` is unavailable — never
-  a transparent, unreadable box.
+- **Frosted glass by default, everywhere** — a portable `backdrop-filter` surface
+  (blur + saturate + inset-shadow glass edge + rim + elastic motion) that renders
+  the same in Chrome, Safari/WebKit, and Firefox. This is the default look.
+- **Opt-in live-backdrop refraction (`displacement`)** — Chromium-only SVG
+  `feDisplacementMap` composited over the live backdrop via `backdrop-filter:
+  url()`, plus chromatic aberration. Silently falls back to frosted on
+  Firefox/Safari.
+- **Opt-in cross-browser refraction (`refract` / `size` / `center`)** — applies
+  the same SVG displacement as an element `filter: url()` on a *copy* of content,
+  so a real refractive lens renders in Chrome, Safari **and** Firefox.
+- **Web + Expo/React Native from one install** — the same `<LiquidGlass>` import
+  resolves to a native (`expo-blur`) frosted build under Metro. iOS is the quality
+  bar; Android is best-effort.
+- **Identical box geometry across every tier** — degrading never shifts layout.
 - **SSR-safe** — conservative capabilities until mount, no hydration mismatch.
-- **Zero runtime dependencies.** React 18+ is a peer dependency.
+- **Zero runtime dependencies.** React 18+ is a peer dependency; the Expo peer
+  deps are optional and web consumers never install them.
 
 ---
 
@@ -134,6 +142,139 @@ accessible group name; set `showLabel` to render it visually.
 
 ---
 
+## Web usage: frosted default, opt-in refraction
+
+On the web the glass renders a **portable frosted surface by default** — the same
+`backdrop-filter` blur/saturate look in Chrome, Safari/WebKit, and Firefox. No
+props are required:
+
+```tsx
+import { LiquidGlass } from '@aberhamm/liquid-glass-react';
+
+<LiquidGlass cornerRadius={24} padding="16px 24px">
+  <span>Frosted by default — portable across engines</span>
+</LiquidGlass>;
+```
+
+There are **two independent, opt-in ways** to add real refraction. They compose,
+and both are off by default.
+
+### `displacement` — bend the LIVE page (Chromium only)
+
+`displacement` attaches the SVG `feDisplacementMap` as a `backdrop-filter: url()`,
+so it warps the **live content behind** the glass. This only composites in
+Chromium (Chrome, Edge, Brave, Opera); Firefox and Safari/WebKit **silently fall
+back** to the frosted surface.
+
+```tsx
+// Chromium bends the real page behind the glass; other engines stay frosted.
+<LiquidGlass displacement>
+  <span>Live-backdrop refraction where supported</span>
+</LiquidGlass>;
+```
+
+> **Upgrading from `0.1.x`?** Refraction used to be the default look. Add
+> `displacement` to restore the old Chromium live-backdrop bend.
+
+### `refract` / `size` / `center` — refract a COPY (cross-browser)
+
+The cross-browser path applies the same SVG displacement as an **element**
+`filter: url()` on a **copy** of content. Because it filters an element (not the
+backdrop), a real refractive lens renders in Chrome, Safari **and** Firefox. Two
+modes:
+
+- **In-place** — pass `size` and/or `center` to refract a copy of the glass's own
+  children, with the crisp children on top:
+
+  ```tsx
+  <LiquidGlass size={{ width: 320, height: 200 }} center={{ x: 0.5, y: 0.5 }}>
+    <span>Refracts a copy of its own children — all engines</span>
+  </LiquidGlass>;
+  ```
+
+- **Lens over foreign content** — pass `refract={node}` to float a lens over
+  content the glass doesn't own; `behind` fills any bleed the copied node doesn't
+  cover:
+
+  ```tsx
+  <LiquidGlass refract={<img src="/poster.jpg" alt="" />} behind="#0b0b0f">
+    <span>Floats a refractive lens over the poster</span>
+  </LiquidGlass>;
+  ```
+
+> **Which bends what?** `displacement` bends the **live page** behind the glass
+> (Chromium only). `refract` / `size` / `center` refract a **copy** of content via
+> an element filter (Chrome, Safari, **and** Firefox). They are distinct and
+> compose. The refracted copy is decorative — `aria-hidden` + `inert` +
+> `pointer-events: none` — so keep the copied subtree **purely presentational**
+> (no `id`s, effects, focusable controls, or data fetching; it mounts twice).
+
+---
+
+## Expo / React Native
+
+The **same `<LiquidGlass>` import** works in an Expo / React Native app. Metro
+resolves the native build automatically via the package's `react-native` export
+condition — there is no separate import path:
+
+```tsx
+import { LiquidGlass } from '@aberhamm/liquid-glass-react';
+import { Text } from 'react-native';
+
+export function Badge() {
+  return (
+    <LiquidGlass cornerRadius={24} padding={16} onPress={() => {}}>
+      <Text style={{ color: 'white', fontWeight: '600' }}>Liquid glass</Text>
+    </LiquidGlass>
+  );
+}
+```
+
+The native surface renders **frosted glass** — an `expo-blur` `BlurView` with a
+tint and a gradient sheen. It is a genuinely different renderer from the web build,
+so the web-only props are **documented no-ops** on native: `displacement`,
+`refract`, `size`, `center`, `behind`, `saturation`, `variant`, `mode`,
+`aberrationIntensity`, and the pointer/motion props. The native primitive uses
+`onPress` (the web primitive uses `onClick`) and takes `style?: ViewStyle`.
+
+> **iOS is the quality bar; Android is best-effort.** Android uses expo-blur's
+> `experimentalBlurMethod` and degrades gracefully where blur support is limited.
+
+### Optional peer deps
+
+The Expo target needs two **optional** peer dependencies — `expo-blur` and
+`expo-linear-gradient` — plus `react-native` (and `expo` itself), which your Expo
+app already provides. They are marked `optional` in `peerDependenciesMeta`, so
+**web-only consumers never install them**:
+
+```bash
+npx expo install expo-blur expo-linear-gradient
+# react-native and expo come from your Expo app itself
+```
+
+The prebuilt `GlassButton`, `GlassCard`, and `GlassSegmentedControl` are
+**web-only this round** — they are DOM components and are intentionally **not**
+part of the native barrel (`src/index.native.ts`), so they won't resolve in a
+native bundle. Use the `<LiquidGlass>` primitive on native.
+
+---
+
+## What works where
+
+| Capability | Chrome / Edge | Safari / WebKit | Firefox | Expo (iOS) | Expo (Android) |
+| --- | --- | --- | --- | --- | --- |
+| **Frosted glass** (default) | ✅ | ✅ | ✅ | ✅ | ⚠️ best-effort |
+| **`displacement`** (live-backdrop bend) | ✅ | frosted fallback | frosted fallback | no-op | no-op |
+| **Cross-browser refraction** (`refract` / `size` / `center`) | ✅ | ✅ | ✅ | no-op | no-op |
+| **Prebuilt** `GlassButton` / `GlassCard` / `GlassSegmentedControl` | ✅ | ✅ | ✅ | ❌ web-only | ❌ web-only |
+
+Frosted is the portable default everywhere. `displacement` bends the live page and
+is Chromium-only (frosted fallback elsewhere). The cross-browser `refract` path
+renders a refractive copy in all three web engines. The prebuilt components are
+web-only this round.
+
+---
+
 ## The `asChild` polymorphism pattern
 
 `GlassButton` and `GlassCard` accept `asChild`. When set, the component renders
@@ -189,19 +330,29 @@ derived `canRefract`.
 
 ## Browser support
 
-Behavior is selected at runtime by the `canRefract` gate
+The **default** render is the portable frosted surface — identical in Chrome,
+Safari/WebKit, and Firefox. The runtime `canRefract` gate
 (`supportsBackdropFilter && supportsSvgBackdropDisplacement`, where the latter is
-positive Blink-family detection). All tiers share **identical box geometry**, so
+positive Blink-family detection) only decides what the **opt-in `displacement`**
+prop does: whether the live-backdrop SVG bend composites, or degrades to frosted.
+The cross-browser `refract` / `size` / `center` path does **not** depend on this
+gate — it renders in every engine. All tiers share **identical box geometry**, so
 moving between them causes **no layout shift**. See
 [`docs/PARITY.md`](./docs/PARITY.md) for the full contract.
 
-| Engine | `canRefract` | Rendered behavior |
-| --- | --- | --- |
-| **Chromium** (Chrome, Edge, Brave, Opera) | `true` | **Full effect** — SVG `feDisplacementMap` refraction composited over `backdrop-filter`, blur, saturation, chromatic aberration, and elastic motion. |
-| **Firefox** (Gecko) | `false` | **Frosted fallback** — `backdrop-filter: blur() saturate()` + inset-shadow glass edge + rim + elastic motion. No refraction. |
-| **Safari / WebKit** | `false` | **Frosted fallback** — same as Firefox; `-webkit-backdrop-filter` renders the blur/saturate, but WebKit does not composite the SVG displacement over the backdrop. |
-| No `backdrop-filter` (very old engines) | `false` | **Solid translucent fallback** — scheme-aware `rgba(...)` fill so content stays legible; never a transparent box. |
-| **SSR / pre-mount** | `false` | **Conservative (degraded)** — all capabilities `false` until the client mount effect re-evaluates, avoiding hydration mismatch. |
+Behavior when `displacement` is requested:
+
+| Engine | `canRefract` | With `displacement` | Default (no `displacement`) |
+| --- | --- | --- | --- |
+| **Chromium** (Chrome, Edge, Brave, Opera) | `true` | **Live-backdrop refraction** — SVG `feDisplacementMap` bends the live page behind the glass, over `backdrop-filter` blur/saturate, with chromatic aberration and elastic motion. | Frosted surface. |
+| **Firefox** (Gecko) | `false` | **Frosted fallback** — `displacement` degrades silently; no live-backdrop bend. | Frosted surface. |
+| **Safari / WebKit** | `false` | **Frosted fallback** — same as Firefox; WebKit does not composite the SVG displacement over the backdrop. | Frosted surface. |
+| No `backdrop-filter` (very old engines) | `false` | **Solid translucent fallback** — scheme-aware `rgba(...)` fill so content stays legible; never a transparent box. | Solid translucent fallback. |
+| **SSR / pre-mount** | `false` | **Conservative (frosted/degraded)** — all capabilities `false` until the client mount effect re-evaluates, avoiding hydration mismatch. | Conservative. |
+
+The cross-browser `refract` / `size` / `center` path renders a refractive **copy**
+in all of the above web engines regardless of `canRefract` (see
+[Web usage](#refract--size--center--refract-a-copy-cross-browser)).
 
 Why not feature-detect refraction directly? There is no standardized
 `CSS.supports` probe for "an SVG `feDisplacementMap` composites correctly over
@@ -372,6 +523,7 @@ prop:
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
 | `children` | `ReactNode` | — | Content rendered inside the glass surface. |
+| `displacement` | `boolean` | `false` | Opt into live-backdrop SVG refraction (**Chromium only**; frosted fallback on Firefox/Safari). Bends the real page behind the glass via `backdrop-filter: url()`. No-op on native. |
 | `displacementScale` | `number` | `70` | Strength of the refraction distortion; higher bends the backdrop more. |
 | `blurAmount` | `number` | `0.0625` | Backdrop blur radius (px) applied behind the glass. |
 | `saturation` | `number` | `140` | Backdrop saturation multiplier (`1` = unchanged). |
@@ -384,6 +536,10 @@ prop:
 | `scrollAwareShadow` | `boolean` | `false` | Opt in: the decoupled drop-shadow deepens/darkens over dark/dense backdrops and eases/lightens over light/solid ones, from the same backdrop sampler (see [Scroll-aware shadow](#scroll-aware-shadow-scrollawareshadow)). |
 | `variant` | `'regular' \| 'clear'` | `'regular'` | Material variant. `regular` = today's fully adaptive surface; `clear` is permanently more transparent and non-adaptive (`adaptiveTint` is a no-op) with a dimming scrim (see [Material variants](#material-variants-regular-vs-clear-variant)). |
 | `mode` | `DisplacementMode` | `'standard'` | Displacement algorithm (see [Displacement `mode`](#displacement-mode)). |
+| `refract` | `ReactNode` | `undefined` | **Cross-browser** copy-refraction: floats a refracted lens rendering this node (Chrome, Safari, Firefox). The copy is `aria-hidden` + `inert` + `pointer-events:none` — keep it presentational. No-op on native. |
+| `size` | `GlassSize` (`{ width: number; height: number }`) | measured | Explicit lens size in px. Setting it (with or without `refract`) opts into **in-place** cross-browser copy-refraction of the glass's own children. No-op on native. |
+| `center` | `GlassCenter` (`{ x: number; y: number }`) | `{ x: 0.5, y: 0.5 }` | Lens focal point as fractions in `[0, 1]`; drives the refracted copy's `transform-origin`. Opts into in-place copy-refraction like `size`. No-op on native. |
+| `behind` | `string` | `undefined` | CSS `background` painted behind the refracted copy to fill bleed (most useful with `refract`). No effect unless copy-refraction is active. No-op on native. |
 | `className` | `string` | — | Class name(s) on the outermost glass element. |
 | `style` | `CSSProperties` | — | Inline styles merged onto the outermost element. |
 | `onClick` | `MouseEventHandler<HTMLDivElement>` | — | Click handler forwarded to the surface. |
@@ -440,10 +596,11 @@ Extends native `<div>` attributes (`ref`, `className`, `style`, `children`, …)
   `getDisplacementMap`, `roundedRectSDF`, `smoothStep`,
   `calculateDirectionalScale`, `calculateElasticTranslation`,
   `getGlassEdgeShadow`, and the `GLASS_EDGE_LIGHT` / `GLASS_EDGE_DARK` constants.
-- **Types** — `LiquidGlassProps`, `DisplacementMode`, `MousePos`,
-  `GlassCapabilities`, `GlassButtonProps`, `GlassCardProps`,
-  `GlassSegmentedControlProps`, `GlassSegmentedOption`, and the variant/size/
-  elevation unions.
+- **Types** — `LiquidGlassProps`, `DisplacementMode`, `GlassVariant`,
+  `GlassSize`, `GlassCenter`, `MousePos`, `GlassCapabilities`, `GlassButtonProps`,
+  `GlassCardProps`, `GlassSegmentedControlProps`, `GlassSegmentedOption`, and the
+  variant/size/elevation unions. The native barrel additionally exports
+  `LiquidGlassCoreProps` (the platform-neutral base).
 - **`VERSION`** — the package version string.
 
 ---
