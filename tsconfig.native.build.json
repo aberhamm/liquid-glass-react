@@ -1,0 +1,21 @@
+{
+  // Native EMIT config (plan 025 packaging).
+  //
+  // `tsconfig.native.json` is the type-CHECK config: it inherits the web base's
+  // `emitDeclarationOnly: true` and sets `noEmit: true`, so `pnpm typecheck:native`
+  // never writes output. This config is its emit counterpart, wired into
+  // `pnpm build:native`: it turns emit ON and writes JS + `.d.ts` for the native
+  // entry (`index.native.js`) and its imports (the native component + shared
+  // `tokens`/`types`) to `dist/native/`, which the `react-native` export
+  // condition resolves. The `include` (the `*.native.{ts,tsx}` glob) is inherited,
+  // so the native test (`*.native.test.tsx`) is never emitted.
+  "extends": "./tsconfig.native.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "emitDeclarationOnly": false,
+    "declaration": true,
+    "declarationMap": false,
+    "sourceMap": false,
+    "outDir": "dist/native"
+  }
+}

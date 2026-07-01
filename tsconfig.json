@@ -26,7 +26,9 @@
     "types": ["vitest/globals", "@testing-library/jest-dom"]
   },
   "include": ["src", "vite.config.ts", "vitest.config.ts"],
-  // `src/**/*.native.{ts,tsx}` (plan 025's React Native files) are compiled by
-  // tsconfig.native.json against RN libs — never by this DOM-only web config.
-  "exclude": ["dist", "node_modules", "src/**/*.native.{ts,tsx}"]
+  // All `src/**/*.native.*` files (plan 025's React Native entry points AND the
+  // native `*.native.test.tsx`) are compiled by tsconfig.native.json / run by
+  // vitest.native.config.ts against RN libs — never by this DOM-only web config.
+  // Matches the `src/**/*.native.*` exclude vite-plugin-dts and Vitest already use.
+  "exclude": ["dist", "node_modules", "src/**/*.native.*"]
 }

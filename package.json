@@ -31,8 +31,13 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
+  "react-native": "./dist/native/index.native.js",
   "exports": {
     ".": {
+      "react-native": {
+        "types": "./dist/native/index.native.d.ts",
+        "default": "./dist/native/index.native.js"
+      },
       "import": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.mjs"
@@ -51,7 +56,8 @@
     "onlyBuiltDependencies": ["@biomejs/biome", "esbuild"]
   },
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && pnpm build:native",
+    "build:native": "tsc -p tsconfig.native.build.json",
     "typecheck": "tsc --noEmit",
     "typecheck:native": "tsc -p tsconfig.native.json --noEmit",
     "lint": "biome check .",
@@ -69,7 +75,21 @@
   },
   "peerDependencies": {
     "react": ">=18",
-    "react-dom": ">=18"
+    "react-dom": ">=18",
+    "react-native": ">=0.74",
+    "expo-blur": ">=13",
+    "expo-linear-gradient": ">=13"
+  },
+  "peerDependenciesMeta": {
+    "react-native": {
+      "optional": true
+    },
+    "expo-blur": {
+      "optional": true
+    },
+    "expo-linear-gradient": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.3",
@@ -91,7 +111,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-native": "^0.83.10",
-    "react-test-renderer": "^19.2.7",
+    "react-test-renderer": "^18.3.1",
     "storybook": "^8.6.18",
     "typescript": "^5.7.3",
     "vite": "^6.0.7",

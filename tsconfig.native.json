@@ -26,7 +26,16 @@
     "types": [],
     "noEmit": true
   },
-  // The placeholder keeps the input set non-empty before plan 025 lands native
-  // files, so `tsc -p` never errors with TS18003 ("No inputs were found").
-  "include": ["src/**/*.native.{ts,tsx}", "tsconfig.native.placeholder.ts"]
+  // Plan 025 landed the real native entry points (`liquid-glass.native.tsx`,
+  // `index.native.ts`), so the input set is non-empty and the plan-024
+  // placeholder was removed. NOTE: TypeScript tsconfig globs do NOT support
+  // brace expansion (`{ts,tsx}` is matched literally, not as ts|tsx), so the two
+  // extensions are listed separately. These globs match `*.native.ts(x)` but NOT
+  // `*.native.test.tsx` — the native test runs under `vitest.native.config.ts`,
+  // it is not type-checked or emitted here.
+  "include": ["src/**/*.native.ts", "src/**/*.native.tsx"],
+  // Override the web base's `exclude` (which drops ALL `src/**/*.native.*`) so
+  // this config actually compiles the native entry points. Still exclude the
+  // native test — it runs under vitest.native.config.ts, not tsc.
+  "exclude": ["dist", "node_modules", "src/**/*.native.test.ts", "src/**/*.native.test.tsx"]
 }

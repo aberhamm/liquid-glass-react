@@ -20,6 +20,7 @@ vi.mock('react-native', () => ({
   },
   View: 'View',
   Text: 'Text',
+  Pressable: 'Pressable',
 }));
 
 // expo-blur's <BlurView> wraps a native view; a string host component is enough
