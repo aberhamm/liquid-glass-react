@@ -1,7 +1,7 @@
 ---
 id: 025
 title: Implement native LiquidGlass, native barrel, and platform-split packaging
-status: pending
+status: in-progress
 blocked-by: [022, 024]
 priority:
 goal: cross-browser-expo-liquid-glass
