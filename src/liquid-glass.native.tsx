@@ -212,11 +212,8 @@ export function LiquidGlass({
   ] as const;
 
   // Primary drop-shadow layer (RN supports a single shadow; take the base layer).
-  const {
-    y: shadowY,
-    blur: shadowBlur,
-    alpha: shadowAlpha,
-  } = SHADOW_LAYERS.rest[0] ?? { y: 8, blur: 24, alpha: 0.22 };
+  // `SHADOW_LAYERS.rest` is a fixed `as const` tuple, so index 0 is always present.
+  const { y: shadowY, blur: shadowBlur, alpha: shadowAlpha } = SHADOW_LAYERS.rest[0];
 
   const containerStyle: ViewStyle = {
     borderRadius: radius,
