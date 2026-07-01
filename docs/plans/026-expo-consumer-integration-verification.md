@@ -1,7 +1,7 @@
 ---
 id: 026
 title: Verify the package resolves and renders inside an Expo/Metro consumer
-status: pending
+status: in-progress
 blocked-by: [025]
 priority:
 goal: cross-browser-expo-liquid-glass
