@@ -1,13 +1,16 @@
 ---
 id: 025
 title: Implement native LiquidGlass, native barrel, and platform-split packaging
-status: in-progress
+status: done
 blocked-by: [022, 024]
 priority:
 goal: cross-browser-expo-liquid-glass
 allows-migrations: false
 needs-review: none
 created: 2026-06-22
+completed: 2026-07-01
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -155,3 +158,24 @@ Testing approach: E2E
 - [assert] `node -e "const p=require('./package.json'); process.exit(p.peerDependenciesMeta&&p.peerDependenciesMeta['expo-blur']&&p.peerDependenciesMeta['expo-blur'].optional?0:1)"`
 - [assert] `node -e "const fs=require('fs'); process.exit(/CSSProperties|MouseEventHandler/.test(fs.readFileSync('src/liquid-glass.native.tsx','utf8'))?1:0)"`
 - [cmd] `pnpm test:native` (the native render smoke test on the plan-024 runner)
+
+## Implementation Notes
+
+Implemented the RN frosted `<LiquidGlass>` (expo-blur BlurView + `FROSTED_DEFAULT_FILL` tint + expo-linear-gradient sheen + RN shadow/elevation, all from `src/tokens.ts`), typed on `LiquidGlassCoreProps` + `{style?: ViewStyle; onPress?}` with web-only props as documented no-ops and Android graceful degradation (raised tint alpha + `experimentalBlurMethod`). Added `src/index.native.ts` (native barrel: LiquidGlass + tokens + platform-neutral types, no DOM prebuilts/hooks); wired `package.json` optional peer deps + `peerDependenciesMeta`, a `react-native` export condition ordered before import/require, and `build:native`. Emit approach: a dedicated `tsconfig.native.build.json` extending `tsconfig.native.json` with `noEmit:false`/`emitDeclarationOnly:false`/`declaration:true`/`outDir:dist/native` (needed to override the web base's `emitDeclarationOnly:true`); `build` = `vite build && pnpm build:native`.
+
+**Deviations:** (1) did NOT add `expo` — tsc emit/typecheck/test resolve cleanly without it under skipLibCheck. (2) Fixed two plan-024 assumptions the placeholder had masked — TypeScript tsconfig globs don't support `{ts,tsx}` brace expansion (split to explicit `*.native.ts`/`*.native.tsx` + overrode inherited native `exclude`), and RNTL@14 requires React 19 while this lib is React 18, so aligned `react-test-renderer` to ^18 and drove the smoke test via react-test-renderer directly. (3) Code review added a top-level `"react-native"` package field so Metro resolves the native entry on RN 0.74–0.78 (where `exports` conditions aren't default-on). Also broadened the web `tsconfig.json` exclude to `src/**/*.native.*` and extended the plan-024 mock with `Pressable`. Placeholder `tsconfig.native.placeholder.ts` deleted (real native files now satisfy the input set).
+
+**Files changed:**
+
+- `src/liquid-glass.native.tsx` (created)
+- `src/index.native.ts` (created)
+- `src/liquid-glass.native.test.tsx` (created)
+- `tsconfig.native.build.json` (created)
+- `package.json` (modified)
+- `pnpm-lock.yaml` (modified)
+- `tsconfig.json` (modified)
+- `tsconfig.native.json` (modified)
+- `vitest.native.setup.ts` (modified)
+- `tsconfig.native.placeholder.ts` (deleted)
+
+**Commit:** `1cf8a1b` — `feat(native): add React Native LiquidGlass, native barrel + platform-split packaging`
