@@ -1,13 +1,16 @@
 ---
 id: 026
 title: Verify the package resolves and renders inside an Expo/Metro consumer
-status: in-progress
+status: done
 blocked-by: [025]
 priority:
 goal: cross-browser-expo-liquid-glass
 allows-migrations: false
 needs-review: none
 created: 2026-06-22
+completed: 2026-07-01
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -85,3 +88,15 @@ Testing approach: E2E
 - [cmd] native resolution check (e.g. `pnpm verify:expo` or `node scripts/verify-native-resolution.mjs`)
 - [assert] resolution script prints the native entry filename for the `react-native` condition (e.g. output contains `index.native`)
 - [cmd] native render smoke test command
+
+## Implementation Notes
+
+Added a verification-only Expo/Metro consumer harness — no library code changed. Resolution approach is an in-repo Node `exports` resolver (not a packed tarball): `scripts/verify-native-resolution.mjs` reads the real `package.json` exports map, applies conditional resolution against the emitted `dist/`, and asserts (a) the `react-native` condition → `./dist/native/index.native.js`, (b) web `import`/`browser` → `./dist/index.mjs` and `require` → `./dist/index.cjs`, and (c) the web entry's transitive import graph is free of `expo-*`/`react-native` specifiers (web bundle only imports `react`). The consumer-style render smoke test (`src/consumer.native.test.tsx`) mounts `<LiquidGlass>` through the public native barrel `./index.native` (distinct from plan 025's deep-import test) and asserts a non-empty BlurView+LinearGradient tree with children plus the re-exported `DEFAULTS` tokens, on the plan-024 native runner. Wired both into a new `verify:expo` script (pack:check kept as its own gate). No packaging defect surfaced — plan 025's surface resolves and renders exactly as intended.
+
+**Files changed:**
+
+- `scripts/verify-native-resolution.mjs` (created)
+- `src/consumer.native.test.tsx` (created)
+- `package.json` (modified)
+
+**Commit:** `db72ce8` — `test(native): add Expo/Metro consumer resolution + render verification harness`

@@ -71,6 +71,7 @@
     "e2e:ui": "pnpm build-storybook && playwright test --ui",
     "attw": "attw --pack . --exclude-entrypoints ./styles.css",
     "pack:check": "npm pack --dry-run",
+    "verify:expo": "node scripts/verify-native-resolution.mjs && vitest run --config vitest.native.config.ts",
     "prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "peerDependencies": {
