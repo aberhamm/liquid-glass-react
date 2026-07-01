@@ -66,7 +66,7 @@ export const Playground: Story = {
   args: {
     children: cardBody(
       'Glass Card',
-      'A frosted surface that refracts the backdrop behind it. Change the elevation control to lift it off the page.',
+      'A frosted surface that samples the backdrop behind it (live refraction is an opt-in enhancement). Change the elevation control to lift it off the page.',
     ),
   },
 };
@@ -108,7 +108,7 @@ export const WithContent: Story = {
         </span>
         <h3 style={{ margin: 0, fontSize: '1.375rem' }}>Everything, unlocked</h3>
         <p style={{ margin: 0, opacity: 0.9, lineHeight: 1.55 }}>
-          Unlimited surfaces, priority rendering and the full refraction pipeline on supported
+          Unlimited surfaces, priority rendering and the opt-in refraction pipeline on supported
           browsers.
         </p>
         <div style={{ marginTop: '0.5rem' }}>

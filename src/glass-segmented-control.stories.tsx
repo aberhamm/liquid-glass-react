@@ -5,9 +5,10 @@ import { GlassSegmentedControl, type GlassSegmentedOption } from './glass-segmen
 /**
  * `<GlassSegmentedControl>` — the showcase liquid toggle. A native radiogroup
  * (`<fieldset>`/`<legend>` + visually-hidden radios) with a single
- * `<LiquidGlass>` indicator that slides behind the active option. Full
- * refraction in Chromium, graceful fallback elsewhere; the slide is a CSS
- * transform so it renders everywhere. Controlled/uncontrolled per the 007
+ * `<LiquidGlass>` indicator that slides behind the active option. Frosted by
+ * default in every engine (live refraction is an opt-in enhancement, Chromium
+ * only); the slide is a CSS transform so it renders everywhere.
+ * Controlled/uncontrolled per the 007
  * convention; keyboard + screen-reader accessible for free via native radios.
  */
 const THEME_OPTIONS: GlassSegmentedOption[] = [

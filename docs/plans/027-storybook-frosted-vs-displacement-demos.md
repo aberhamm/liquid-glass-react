@@ -1,13 +1,16 @@
 ---
 id: 027
 title: Storybook demos for frosted-default vs opt-in displacement + portable highlights
-status: in-progress
+status: done
 blocked-by: [023]
 priority:
 goal: cross-browser-expo-liquid-glass
 allows-migrations: false
 needs-review: none
 created: 2026-06-22
+completed: 2026-07-01
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -82,3 +85,15 @@ Testing approach: browser-based
 - [assert] `grep -n "displacement" src/liquid-glass.stories.tsx` outputs a match
 - [browse] `/?path=/story/components-liquidglass--playground` verify toggling the displacement control changes the glass on Chromium and the default (off) shows the frosted look
 - [manual] Design review: the frosted-vs-displacement contrast reads clearly and the default sells the effect.
+
+## Implementation Notes
+
+Added two new stories to `src/liquid-glass.stories.tsx` — `FrostedVsDisplacement` (side-by-side frosted-default vs opt-in-displacement A/B over the same calm PhotosAppBackdrop, browser-aware via `useGlassCapabilities().canRefract` so Firefox/Safari viewers are told both panels render identically by design) and `PortableHighlights` (specular/sheen/rim/bevel that render identically across engines). Swept stale "refraction is the default" framing from the meta docs, the Playground hint/description, GlassCard, and GlassSegmentedControl, and added the displacement opt-in to the ScrollUnderGlass pinned bar so its refraction copy is true; the 023 Playground displacement control was verified present, not duplicated. /browse ran successfully (agent-browser on bundled Chromium): the comparison story rendered the correct Chromium annotation and visible refraction on the Displacement panel; the Playground renders frosted by default and refracts when displacement is toggled on — console clean. Only story files changed; no library component code touched.
+
+**Files changed:**
+
+- `src/liquid-glass.stories.tsx` (modified)
+- `src/glass-card.stories.tsx` (modified)
+- `src/glass-segmented-control.stories.tsx` (modified)
+
+**Commit:** `320cb95` — `docs(storybook): frosted-vs-displacement + portable-highlights demos; drop stale refraction-default framing`

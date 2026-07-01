@@ -3,14 +3,21 @@ import { type ReactElement, useCallback, useRef, useState } from 'react';
 import { LiquidGlass } from './liquid-glass';
 import { PhotosAppBackdrop, SANS_FONT, photoTileBackground } from './photos-app-backdrop';
 import type { DisplacementMode, LiquidGlassProps, MousePos } from './types';
+import { useGlassCapabilities } from './use-glass-capabilities';
 
 /**
  * `<LiquidGlass>` is the low-level primitive every prebuilt component wraps. The
- * stories below are the interactive documentation surface: the `Playground`
- * exposes every prop as a live control, `Modes` exercises all five displacement
- * algorithms over real app content, `Showcase` floats glass over a calm Photos
+ * DEFAULT surface is the portable frosted recipe (white tint + blur + saturate +
+ * hairline ring + bevel) that renders in every engine; live SVG refraction is an
+ * OPT-IN enhancement behind the `displacement` prop (off by default, Chromium
+ * only). The stories below are the interactive documentation surface: the
+ * `Playground` exposes every prop as a live control (including the `displacement`
+ * toggle), `FrostedVsDisplacement` puts the default frosted look next to the
+ * opt-in refraction over the SAME backdrop, `PortableHighlights` isolates the
+ * specular/sheen/rim/bevel that render identically everywhere, `Modes` exercises
+ * all five displacement algorithms, `Showcase` floats glass over a calm Photos
  * app, and the `Draggable` / `ScrollUnderGlass` / `CheapVsReal` stories let the
- * viewer SEE refraction by moving content under the glass. Full refraction
+ * viewer SEE the opt-in refraction by moving content under the glass. Refraction
  * renders in Chromium and degrades cleanly elsewhere — see the CrossBrowser
  * story. The shared backdrop is an Apple-Photos-style surface built from
  * same-origin CSS scenic-gradient tiles (see `./photos-app-backdrop`).
@@ -23,10 +30,11 @@ const meta = {
     docs: {
       description: {
         component:
-          'The displacement/refraction primitive. Numeric controls below map 1:1 ' +
-          'to the documented prop defaults; the visible effect requires a busy ' +
-          'backdrop (every story is wrapped in one) and full refraction only ' +
-          'renders in Chromium.',
+          'The glass primitive. It renders the portable frosted recipe by DEFAULT ' +
+          '(every engine); the live SVG refraction is opt-in via `displacement` ' +
+          '(off by default, Chromium only). Numeric controls below map 1:1 to the ' +
+          'documented prop defaults; the visible effect requires a busy backdrop ' +
+          '(every story is wrapped in one) and refraction only renders in Chromium.',
       },
     },
   },
@@ -230,7 +238,8 @@ const PlaygroundStory = (args: LiquidGlassProps): ReactElement => {
       </div>
 
       <p className="lg-pg__hint">
-        Tweak any prop in the Controls panel ↓ — the glass refracts the photos behind it
+        Frosted by default — toggle <code>displacement</code> in the Controls panel ↓ to refract the
+        photos (Chromium)
       </p>
       <div className="lg-pg__stage">
         <LiquidGlass {...args} />
@@ -258,9 +267,11 @@ export const Playground: Story = {
       description: {
         story:
           'The interactive sandbox. Every prop is editable from the Controls ' +
-          'panel below, and the glass floats over a dense mosaic of colorful ' +
+          'panel below — it DEFAULTS to frosted (`displacement` off), the look ' +
+          'most users get; flip the `displacement` toggle on Chromium to attach ' +
+          'the live refraction. The glass floats over a dense mosaic of colorful ' +
           'photo tiles whose high-frequency edges make every refraction prop ' +
-          'visibly change the result.',
+          'visibly change the result once displacement is on.',
       },
     },
   },
@@ -476,6 +487,269 @@ export const DisplacementShowcase: Story = {
     },
   },
   render: () => <ShowcaseScene displacement />,
+};
+
+const FROSTED_VS_CSS = `
+.lg-fvd__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 4rem 1.5rem;
+  box-sizing: border-box;
+  pointer-events: none;
+  font-family: ${SANS_FONT};
+}
+.lg-fvd__note {
+  margin: 0;
+  max-width: 42rem;
+  text-align: center;
+  padding: 0.65rem 1rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  background: rgba(15, 23, 42, 0.74);
+  color: #fff;
+}
+.lg-fvd__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3rem;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.lg-fvd__cell {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  pointer-events: auto;
+}
+.lg-fvd__cap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  text-align: center;
+  color: #1e293b;
+  max-width: 18rem;
+  background: rgba(255, 255, 255, 0.78);
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+}
+.lg-fvd__cap strong { font-size: 0.95rem; }
+.lg-fvd__cap span { font-size: 0.85rem; opacity: 0.9; }
+`;
+
+/**
+ * Frosted-default vs opt-in-displacement A/B over the SAME calm Photos backdrop.
+ * Browser-aware: `useGlassCapabilities().canRefract` drives an annotation so a
+ * viewer on Firefox/Safari (where `displacement` is a no-op and both panels
+ * render the identical frosted recipe) understands the two identical panels are
+ * by design, not a broken demo.
+ */
+const FrostedVsDisplacementStory = (): ReactElement => {
+  const { canRefract } = useGlassCapabilities();
+  return (
+    <PhotosAppBackdrop>
+      <style>{FROSTED_VS_CSS}</style>
+      <div className="lg-fvd__overlay">
+        <p className="lg-fvd__note">
+          {canRefract
+            ? 'This engine (Chromium) can refract: the right panel bends the photos at its edges ' +
+              'via live SVG displacement, while the left stays purely frosted.'
+            : 'This engine (Firefox / Safari) cannot refract, so `displacement` falls back to the ' +
+              'frosted recipe — both panels render identically here by design, not because the ' +
+              'demo is broken. Open this story in Chrome to see the refraction.'}
+        </p>
+        <div className="lg-fvd__row">
+          <figure className="lg-fvd__cell">
+            <LiquidGlass
+              cornerRadius={28}
+              padding="32px 36px"
+              displacementScale={80}
+              saturation={160}
+            >
+              {glassLabel('Frosted')}
+            </LiquidGlass>
+            <figcaption className="lg-fvd__cap">
+              <strong>Frosted — default, all browsers</strong>
+              <span>White tint + blur + saturate + hairline ring + bevel. No SVG refraction.</span>
+            </figcaption>
+          </figure>
+
+          <figure className="lg-fvd__cell">
+            <LiquidGlass
+              displacement
+              cornerRadius={28}
+              padding="32px 36px"
+              displacementScale={80}
+              saturation={160}
+            >
+              {glassLabel('Displacement')}
+            </LiquidGlass>
+            <figcaption className="lg-fvd__cap">
+              <strong>Displacement — Chrome opt-in</strong>
+              <span>
+                {canRefract
+                  ? 'Live feDisplacementMap composited over backdrop-filter bends the photos at the edges.'
+                  : 'Opt-in on Chromium; falls back to the identical frosted base on this engine.'}
+              </span>
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+    </PhotosAppBackdrop>
+  );
+};
+
+export const FrostedVsDisplacement: Story = {
+  args: { children: null },
+  parameters: {
+    layout: 'fullscreen',
+    noBackdrop: true,
+    // Curated story with its own fixed-prop glass — the Controls panel is inert
+    // here, so hide it; only Playground is driven by the controls.
+    controls: { disable: true },
+    docs: {
+      description: {
+        story:
+          'The headline A/B: the SAME calm Photos backdrop under a FROSTED (default) ' +
+          'panel and a DISPLACEMENT (opt-in) panel, side by side with identical ' +
+          'geometry so only the refraction differs. Frosted is what every user gets ' +
+          'by default in every engine; `displacement` is the web-only Chromium ' +
+          'enhancement. The story is browser-aware — on Firefox/Safari, where ' +
+          'displacement is a no-op, it annotates that both panels render the ' +
+          'identical frosted recipe by design so two matching panels never read as ' +
+          'a bug.',
+      },
+    },
+  },
+  render: () => <FrostedVsDisplacementStory />,
+};
+
+const PORTABLE_CSS = `
+.lg-ph__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.75rem;
+  padding: 4rem 1.5rem;
+  box-sizing: border-box;
+  pointer-events: none;
+  font-family: ${SANS_FONT};
+}
+.lg-ph__overlay > * { pointer-events: auto; }
+.lg-ph__legend {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 46rem;
+}
+.lg-ph__legend li {
+  background: rgba(255, 255, 255, 0.82);
+  border-radius: 12px;
+  padding: 0.6rem 0.8rem;
+  color: #1e293b;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+.lg-ph__legend strong { display: block; font-size: 0.9rem; margin-bottom: 0.15rem; }
+`;
+
+/**
+ * Portable highlights (plans 015/016): the specular hotspot, sheen / rim-light
+ * and bevel that ship in the DEFAULT frosted recipe and render identically in
+ * every engine — no SVG refraction required. Demonstrated over the calm Photos
+ * backdrop with a legend that names each portable element.
+ */
+export const PortableHighlights: Story = {
+  args: { children: null },
+  parameters: {
+    layout: 'fullscreen',
+    noBackdrop: true,
+    // Curated story with its own fixed-prop glass — the Controls panel is inert
+    // here, so hide it; only Playground is driven by the controls.
+    controls: { disable: true },
+    docs: {
+      description: {
+        story:
+          'The portable "liquid" character that renders IDENTICALLY across Chromium, ' +
+          'Firefox and Safari with NO refraction: the specular hotspot that tracks ' +
+          'the pointer, the sheen / rim-light hairline around the edge, and the bevel ' +
+          'that gives the surface depth. These ship in the default frosted recipe, so ' +
+          'every engine gets the same lively glass even before opting into ' +
+          '`displacement`.',
+      },
+    },
+  },
+  render: () => (
+    <PhotosAppBackdrop>
+      <style>{PORTABLE_CSS}</style>
+      <div className="lg-ph__overlay">
+        <LiquidGlass
+          cornerRadius={28}
+          padding="36px 40px"
+          displacementScale={80}
+          saturation={160}
+          onClick={() => {}}
+        >
+          <div style={{ color: '#fff', maxWidth: '24rem', pointerEvents: 'none' }}>
+            <p
+              style={{
+                margin: '0 0 0.5rem',
+                fontSize: '0.75rem',
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                opacity: 0.82,
+              }}
+            >
+              Portable highlights
+            </p>
+            <h2 style={{ margin: '0 0 0.5rem', fontSize: '1.5rem', lineHeight: 1.2 }}>
+              Lively glass in every engine
+            </h2>
+            <p style={{ margin: 0, fontSize: '0.9375rem', lineHeight: 1.5, opacity: 0.92 }}>
+              Move across the panel for the specular hotspot and press for the glow — the sheen,
+              rim-light and bevel need no refraction, so this reads the same on Chromium, Firefox
+              and Safari.
+            </p>
+          </div>
+        </LiquidGlass>
+
+        <ul className="lg-ph__legend">
+          <li>
+            <strong>Specular hotspot</strong>A bright highlight that tracks the pointer like light
+            catching the surface.
+          </li>
+          <li>
+            <strong>Sheen / rim-light</strong>A hairline ring around the edge that separates the
+            glass from the backdrop.
+          </li>
+          <li>
+            <strong>Bevel</strong>Inner light/dark edges that give the surface thickness and depth.
+          </li>
+          <li>
+            <strong>Frosted base</strong>Blur + saturate + white tint — the recipe every engine
+            shares by default.
+          </li>
+        </ul>
+      </div>
+    </PhotosAppBackdrop>
+  ),
 };
 
 const SHOWCASE_CSS = `
@@ -714,6 +988,7 @@ const ScrollUnderGlassStory = (): ReactElement => {
 
       <div className="lg-scroll__bar">
         <LiquidGlass
+          displacement
           cornerRadius={999}
           padding="14px 30px"
           displacementScale={90}
