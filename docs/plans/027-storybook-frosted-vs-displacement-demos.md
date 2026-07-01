@@ -1,7 +1,7 @@
 ---
 id: 027
 title: Storybook demos for frosted-default vs opt-in displacement + portable highlights
-status: pending
+status: in-progress
 blocked-by: [023]
 priority:
 goal: cross-browser-expo-liquid-glass
