@@ -35,7 +35,9 @@
  * API contract but are DOCUMENTED NO-OPs here — native always renders frosted:
  * `displacement`, `displacementScale`, `aberrationIntensity`, `elasticity`,
  * `saturation` (no native backdrop-saturation control), `overLight`,
- * `adaptiveTint`, `scrollAwareShadow`, `variant`, `mode`, `className`.
+ * `adaptiveTint`, `scrollAwareShadow`, `variant`, `mode`, `className`, and the
+ * plan-030 cross-browser copy-refraction props `refract`, `size`, `center`,
+ * `behind` (RN has no SVG element filters, so there is no copy-refraction path).
  */
 
 import { BlurView } from 'expo-blur';
@@ -178,9 +180,10 @@ const styles = StyleSheet.create({
  * The React Native liquid-glass primitive. See the file header for the layer
  * stack, the token mapping, and the web-only prop no-ops.
  *
- * The web-only props (`displacement`, `saturation`, `variant`, `mode`, etc.) are
- * intentionally NOT read — they're accepted so the cross-platform API is uniform,
- * but native always renders the frosted recipe.
+ * The web-only props (`displacement`, `saturation`, `variant`, `mode`, `refract`,
+ * `size`, `center`, `behind`, etc.) are intentionally NOT read — they're accepted
+ * so the cross-platform API is uniform, but native always renders the frosted
+ * recipe.
  */
 export function LiquidGlass({
   children,

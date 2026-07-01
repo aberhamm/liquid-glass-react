@@ -1709,6 +1709,158 @@ export const CrossBrowser: Story = {
   ),
 };
 
+/**
+ * Cross-browser copy refraction (plan 030). Unlike `displacement` (which bends
+ * the LIVE page via Chromium-only `backdrop-filter: url(#…)`), this applies the
+ * SAME SVG displacement filter as an ELEMENT `filter: url(#…)` to a COPY of
+ * content — which runs in Chromium, Firefox AND WebKit. Two panels:
+ *
+ *   - IN-PLACE (left): `size`/`center` refract a copy of the panel's OWN
+ *     high-frequency children; the crisp label renders on top.
+ *   - `refract={node}` (right): a lens floated over a photo mosaic it does not
+ *     own — the mosaic is cloned + filtered, `behind` fills the bleed, and the
+ *     crisp caption stays selectable on top.
+ *
+ * e2e (`cross-browser-refraction.spec.ts`) targets this story to prove the
+ * `[data-lg-refraction-copy]` layer carries `filter: url(` on all three engines.
+ */
+const REFRACT_CSS = `
+.lg-rf {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4rem 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3rem;
+  align-items: center;
+  justify-content: center;
+  background: #0c1024;
+  font-family: ${SANS_FONT};
+}
+.lg-rf__cell { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+.lg-rf__cap {
+  color: #e2e8f0;
+  text-align: center;
+  max-width: 18rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 0.55rem 0.8rem;
+  border-radius: 12px;
+}
+.lg-rf__cap strong { display: block; color: #fff; font-size: 0.95rem; margin-bottom: 0.2rem; }
+/* High-frequency content so the displacement of the copy is clearly visible. */
+.lg-rf__mosaic {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 40px);
+  grid-auto-rows: 40px;
+  gap: 4px;
+}
+.lg-rf__tile { border-radius: 6px; }
+.lg-rf__hero {
+  position: relative;
+  width: 15rem;
+  height: 9rem;
+  border-radius: 8px;
+  overflow: hidden;
+}
+`;
+
+const REFRACT_TILES = 120;
+
+export const Refract: Story = {
+  args: { children: null },
+  parameters: {
+    layout: 'fullscreen',
+    noBackdrop: true,
+    controls: { disable: true },
+    docs: {
+      description: {
+        story:
+          'Cross-browser copy refraction (plan 030). The refracted layer uses an ' +
+          'ELEMENT `filter: url(#…)` over a COPY of content, so it renders in ' +
+          'Chromium, Firefox AND Safari — unlike the Chromium-only backdrop bend. ' +
+          'Left panel refracts a copy of its OWN children in-place (size/center); ' +
+          'the right panel floats a lens over a photo mosaic it clones via ' +
+          '`refract={node}`, with crisp children on top.',
+      },
+    },
+  },
+  render: () => {
+    const mosaic = (
+      <div className="lg-rf__mosaic" aria-hidden>
+        {Array.from({ length: REFRACT_TILES }, (_, i) => (
+          <div
+            // biome-ignore lint/suspicious/noArrayIndexKey: static decorative tiles
+            key={i}
+            className="lg-rf__tile"
+            style={{ background: photoTileBackground(i) }}
+          />
+        ))}
+      </div>
+    );
+    return (
+      <div className="lg-rf">
+        <style>{REFRACT_CSS}</style>
+
+        {/* IN-PLACE: refract a copy of the panel's OWN vivid children. */}
+        <figure className="lg-rf__cell" style={{ margin: 0 }}>
+          <LiquidGlass
+            size={{ width: 240, height: 144 }}
+            center={{ x: 0.5, y: 0.5 }}
+            displacementScale={90}
+            aberrationIntensity={4}
+            cornerRadius={20}
+            padding="0"
+          >
+            <div
+              className="lg-rf__hero"
+              style={{
+                background:
+                  'conic-gradient(from 20deg, #f97316, #22d3ee, #a855f7, #f43f5e, #f97316)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <span style={{ color: '#fff', fontSize: '1.15rem', fontWeight: 700 }}>In-place</span>
+            </div>
+          </LiquidGlass>
+          <figcaption className="lg-rf__cap">
+            <strong>In-place (size / center)</strong>
+            The glass refracts a copy of its OWN children; the crisp label stays on top.
+          </figcaption>
+        </figure>
+
+        {/* refract={node}: a lens floated over a mosaic it does not own. */}
+        <figure className="lg-rf__cell" style={{ margin: 0 }}>
+          <LiquidGlass
+            refract={mosaic}
+            behind="#0c1024"
+            size={{ width: 240, height: 144 }}
+            displacementScale={110}
+            aberrationIntensity={5}
+            cornerRadius={20}
+            padding="28px 32px"
+          >
+            <span style={{ color: '#fff', fontSize: '1.15rem', fontWeight: 700 }}>
+              refract=node
+            </span>
+          </LiquidGlass>
+          <figcaption className="lg-rf__cap">
+            <strong>refract=&#123;node&#125;</strong>A cloned mosaic is filtered behind the crisp
+            caption; runs in every engine.
+          </figcaption>
+        </figure>
+      </div>
+    );
+  },
+};
+
 const CROSS_BROWSER_CSS = `
 .lg-xb {
   min-height: 100vh;

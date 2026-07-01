@@ -520,6 +520,10 @@ export function LiquidGlass({
   scrollAwareShadow = false,
   variant = 'regular',
   mode = DEFAULTS.mode,
+  refract,
+  size,
+  center,
+  behind,
   className,
   style,
   onClick,
@@ -675,6 +679,39 @@ export function LiquidGlass({
   // surface renders the frosted base — a graceful fallback, never a broken box.
   const filterActive = displacement && canRefract && measured && !reducedTransparency;
   const filterUrl = filterActive ? `url(#${filterId})` : null;
+
+  // ---- Cross-browser copy refraction (plan 030) --------------------------
+  // An ELEMENT `filter: url(#id)` (NOT backdrop-filter) runs the SAME SVG
+  // displacement graph in Chromium, Firefox AND WebKit — but it refracts the
+  // element's OWN pixels, so we bend a COPY of content behind the crisp
+  // children rather than the live page. This is a SEPARATE, additive path from
+  // the 023 backdrop bend above (they compose; neither replaces the other) and
+  // is opted into by any of `refract`/`size`/`center`. When all three are
+  // absent nothing here renders, so the default/backdrop path is byte-for-byte
+  // unchanged. Reduced-transparency drops live lensing here too (frosted only),
+  // matching the backdrop path.
+  const copyRefractRequested = refract !== undefined || size !== undefined || center !== undefined;
+  // Lens geometry: an explicit `size` wins, else the measured box. Positive,
+  // finite dims are required to generate a map + size the filter region.
+  const lensWidth = size?.width ?? (measured ? dimensions.width : 0);
+  const lensHeight = size?.height ?? (measured ? dimensions.height : 0);
+  const copyRefractActive =
+    copyRefractRequested &&
+    !reducedTransparency &&
+    Number.isFinite(lensWidth) &&
+    Number.isFinite(lensHeight) &&
+    lensWidth > 0 &&
+    lensHeight > 0;
+  // A DISTINCT filter id from the backdrop path so the two never couple: the
+  // backdrop `url(#filterId)` and this element `url(#copyFilterId)` reference
+  // independent <filter> graphs even when both are active.
+  const copyFilterId = `${filterId}-copy`;
+  // The content that gets refracted in the copy layer: an explicit `refract`
+  // node (a lens over foreign content), else a copy of the own `children`
+  // (in-place). The crisp, interactive `children` always render on top.
+  const refractedCopy: ReactNode = refract !== undefined ? refract : children;
+  // Focal point → transform-origin on the filtered copy (fractions in [0,1]).
+  const centerOrigin = `${((center?.x ?? 0.5) * 100).toFixed(2)}% ${((center?.y ?? 0.5) * 100).toFixed(2)}%`;
 
   // The portable frosted DEFAULT look applies on the backdrop-filter tiers (1/2)
   // whenever live refraction is NOT active and no a11y override owns the fill: a
@@ -979,6 +1016,33 @@ export function LiquidGlass({
     ...(adaptiveContentColor ? { color: adaptiveContentColor } : {}),
   };
 
+  // Cross-browser copy-refraction layer (plan 030). A SIBLING BEHIND the crisp
+  // content layer (zIndex 0 < content's 1), NEVER an ancestor of `children`, so
+  // the element filter warps only the COPY and the real interactive content
+  // stays crisp/selectable/clickable. It is decorative: aria-hidden + inert +
+  // pointer-events:none so it is not a duplicate a11y tree and never intercepts
+  // input. It tracks the elastic transform so the lens moves with the glass.
+  const copyLayerStyle: CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    borderRadius: radius,
+    overflow: 'hidden',
+    transform: surfaceTransform,
+    transition: 'transform 120ms ease-out',
+    zIndex: 0,
+    pointerEvents: 'none',
+  };
+  // The element that actually carries `filter: url(#copyFilterId)` — its own
+  // pixels (the refracted copy, over the optional `behind` bleed fill) are what
+  // the displacement map warps. transform-origin is the `center` focal point.
+  const copyFilteredStyle: CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    filter: copyRefractActive ? `url(#${copyFilterId})` : undefined,
+    transformOrigin: centerOrigin,
+    ...(behind ? { background: behind } : {}),
+  };
+
   // Dimming scrim (plan 019, Clear only). A subtle scheme-aware fill that sits
   // BEHIND the content so labels stay legible over busy media even though the
   // Clear surface itself is more transparent. It is a SIBLING of the content
@@ -1045,6 +1109,45 @@ export function LiquidGlass({
           />
         ) : null}
       </div>
+
+      {/* Cross-browser copy-refraction layer (plan 030): a decorative SIBLING
+          BEHIND the crisp content that carries an ELEMENT `filter: url(#id)`
+          (runs in Chromium/Firefox/WebKit) over a COPY of the content. The crisp
+          interactive children remain a separate [data-lg-content] sibling on top.
+          Rendered ONLY when opted in (refract/size/center); the default/backdrop
+          path never mounts it. aria-hidden + inert + pointer-events:none so the
+          copy is not a duplicate a11y tree and never intercepts input. */}
+      {copyRefractActive ? (
+        <div
+          data-lg-refraction=""
+          style={copyLayerStyle}
+          aria-hidden="true"
+          // `inert` (global attribute) removes the copy — and any focusable nodes
+          // inside a copied subtree — from tab order + the a11y tree. Passed as the
+          // STRING "true" so the attribute survives both React 18 (renders it
+          // verbatim, no "non-boolean attribute" warning that a bare boolean
+          // triggers) and React 19 (first-class boolean prop: a non-empty string is
+          // truthy and kept, whereas an empty string would coerce to falsy and DROP
+          // it). Typed via a spread since React 18's JSX types predate the prop.
+          // Belt-and-suspenders with aria-hidden + pointer-events:none for engines
+          // that don't honor inert.
+          {...({ inert: 'true' } as Record<string, unknown>)}
+        >
+          <GlassFilter
+            filterId={copyFilterId}
+            mode={mode}
+            width={lensWidth}
+            height={lensHeight}
+            effectiveScale={effectiveScale}
+            aberrationIntensity={effectiveAberration}
+            blurStdDeviation={blurPx}
+            saturation={effectiveSaturation}
+          />
+          <div data-lg-refraction-copy="" style={copyFilteredStyle}>
+            {refractedCopy}
+          </div>
+        </div>
+      ) : null}
 
       {/* Pointer-tracked specular hotspot + press-glow + rim-light border layers
           (pure CSS blend, every browser). Siblings of the content layer, so the

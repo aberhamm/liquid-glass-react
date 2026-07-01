@@ -42,6 +42,30 @@ export type DisplacementMode = 'standard' | 'polar' | 'prominent' | 'shader' | '
 export type GlassVariant = 'regular' | 'clear';
 
 /**
+ * Explicit lens size (CSS pixels) for the cross-browser copy-refraction path
+ * (plan 030). When omitted the lens is sized to the glass's measured dimensions.
+ */
+export interface GlassSize {
+  /** Lens width in CSS pixels. */
+  width: number;
+  /** Lens height in CSS pixels. */
+  height: number;
+}
+
+/**
+ * Lens focal point for the cross-browser copy-refraction path (plan 030),
+ * expressed as fractions of the lens box in `[0, 1]` (`{ x: 0.5, y: 0.5 }` is
+ * the center). It drives the refracted copy's `transform-origin`, so the warp
+ * reads as if the light bends around that point.
+ */
+export interface GlassCenter {
+  /** Horizontal focal point as a fraction of the lens width (`0`–`1`). */
+  x: number;
+  /** Vertical focal point as a fraction of the lens height (`0`–`1`). */
+  y: number;
+}
+
+/**
  * A 2D pointer position in CSS pixels, used for mouse-driven motion/elasticity.
  *
  * Coordinates are interpreted relative to whatever container the consumer wires
@@ -338,6 +362,91 @@ export interface LiquidGlassCoreProps {
    * @defaultValue `'standard'`
    */
   mode?: DisplacementMode;
+
+  /**
+   * CROSS-BROWSER copy-refraction content (plan 030). Distinct from
+   * {@link displacement} (the Chromium-only `backdrop-filter: url(#…)` bend of
+   * the LIVE page behind the glass): this path applies the SAME SVG displacement
+   * filter as an ELEMENT `filter: url(#…)` to a COPY of content, which DOES run in
+   * Chromium, Firefox, AND WebKit. The refracted copy is a decorative sibling
+   * BEHIND the crisp {@link children} (never an ancestor of them), so interactive
+   * content stays selectable and clickable.
+   *
+   * - **`refract` set** — the copy layer renders THIS node (a lens floated over
+   *   content the glass doesn't own), filtered; {@link behind} fills the bleed and
+   *   crisp {@link children} render on top. The node re-renders with the parent
+   *   (React keeps it in sync) and the lens region re-measures on resize.
+   * - **`refract` unset but {@link size}/{@link center} set** — IN-PLACE mode: the
+   *   glass refracts a copy of its OWN {@link children} through the element filter,
+   *   with the crisp children on top.
+   *
+   * Omitting `refract`, {@link size}, AND {@link center} disables this path
+   * entirely — the render is byte-for-byte the {@link displacement} behavior.
+   *
+   * ## Contract: the refracted copy must be PRESENTATIONAL
+   *
+   * The copy layer renders a SECOND instance of the copied node (`refract`, or —
+   * in IN-PLACE mode — a copy of {@link children}). It is `aria-hidden` + `inert`
+   * + `pointer-events: none`, so it is hidden from the a11y tree and cannot be
+   * interacted with. But React still MOUNTS it, so the copied subtree should be
+   * PURELY PRESENTATIONAL:
+   *
+   * - **No `id`s / label targets / in-page anchor targets** — they would be
+   *   duplicated in the DOM (`getElementById` / `label[for]` / `#hash` could bind
+   *   the hidden copy).
+   * - **No effects / focus-on-mount / data fetching / callback refs** — they run
+   *   for BOTH instances.
+   * - **No focusable controls** on engines that don't honor `inert` (older
+   *   Safari/Firefox), where they could otherwise become tabbable inside an
+   *   `aria-hidden` subtree.
+   *
+   * For anything non-trivial, prefer `refract={<decorative node>}` (a background
+   * you fully control) over IN-PLACE copying of rich interactive `children`.
+   * Passing `refract={null}` opts in but renders an EMPTY lens (only the
+   * {@link behind} bleed) — it does NOT fall back to copying `children`.
+   *
+   * **React Native:** a documented NO-OP (no SVG filters; always frosted).
+   *
+   * @defaultValue `undefined`
+   */
+  refract?: ReactNode;
+
+  /**
+   * Explicit lens {@link GlassSize} for the copy-refraction path (plan 030). When
+   * omitted the lens is sized to the glass's measured dimensions. Presence of this
+   * prop (with or without {@link refract}) opts INTO the cross-browser copy
+   * refraction in IN-PLACE mode (refract a copy of the own {@link children}).
+   *
+   * **React Native:** a documented NO-OP.
+   *
+   * @defaultValue `undefined` (use measured dimensions)
+   */
+  size?: GlassSize;
+
+  /**
+   * Lens focal point ({@link GlassCenter}, fractions in `[0, 1]`) for the
+   * copy-refraction path (plan 030). Drives the refracted copy's
+   * `transform-origin`. Presence opts into the cross-browser copy refraction in
+   * IN-PLACE mode, same as {@link size}.
+   *
+   * **React Native:** a documented NO-OP.
+   *
+   * @defaultValue `{ x: 0.5, y: 0.5 }` (center)
+   */
+  center?: GlassCenter;
+
+  /**
+   * Bleed fill (any CSS `background` value) painted behind the refracted copy on
+   * the copy-refraction path (plan 030), so the displacement has something to pull
+   * from where the copied content doesn't cover the lens box. Most useful with
+   * {@link refract} (a lens over foreign content); usually unnecessary for
+   * IN-PLACE mode. No effect unless the copy-refraction path is active.
+   *
+   * **React Native:** a documented NO-OP.
+   *
+   * @defaultValue `undefined`
+   */
+  behind?: string;
 
   /** Additional class name(s) applied to the outermost glass element. */
   className?: string;

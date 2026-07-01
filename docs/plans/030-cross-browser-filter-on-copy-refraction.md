@@ -1,13 +1,16 @@
 ---
 id: 030
 title: Cross-browser refraction via filter-on-copy (in-place + refract node)
-status: in-progress
+status: done
 blocked-by: [022, 023]
 priority:
 goal: cross-browser-expo-liquid-glass
 allows-migrations: false
 needs-review: none
 created: 2026-06-30
+completed: 2026-07-01
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -140,3 +143,21 @@ Testing approach: browser-based
 - [cmd] `pnpm e2e`
 - [assert] `grep -nE "refract|filter:.*url\\(|element.?filter" src/liquid-glass.tsx` outputs a match
 - [browse] `/?path=/story/components-liquidglass--refract` verify the glass visibly refracts its content on the current browser (run in Firefox/Safari to confirm cross-browser)
+
+## Implementation Notes
+
+Added a cross-browser copy-refraction path: an ELEMENT `filter: url(#${filterId}-copy)` applied to a COPY of content (reusing the existing GlassFilter graph + displacement.ts as-is), which renders in Chromium, Firefox AND WebKit — kept alongside the Chromium-only 023 backdrop bend (they compose via distinct filter ids). The `refract` contract chosen is a `ReactNode` (not a live DOM ref): when set it renders that node into a decorative sibling copy layer (aria-hidden + inert + pointer-events:none) BEHIND the crisp `[data-lg-content]` children, with `behind` as the bleed fill; when absent but `size`/`center` are set, IN-PLACE mode copies the own children. Clone-sync is handled by React re-rendering the same node (no manual DOM cloning) plus the existing ResizeObserver re-measuring the lens region — sidestepping the fragile live-DOM-clone approach. Both modes shipped. New optional props `refract`/`size`/`center`/`behind` are additive on `LiquidGlassCoreProps` (documented native no-ops); omitting all of refract/size/center leaves the 023 path byte-for-byte unchanged (213 prior unit tests + all e2e baselines stayed green without regeneration). Added 11 unit tests, a new 3-engine e2e spec, and a `Refract` story.
+
+**Deviations:** (1) `refract` takes a `ReactNode` rather than a live DOM node ref — clone-sync via React re-render + ResizeObserver instead of manual DOM cloning, avoiding the fragile live-clone approach. (2) The e2e spec is assertion-based (proves `filter: url(` on chromium+firefox+webkit) rather than per-engine pixel baselines, avoiding darwin-pinned cross-engine snapshot flakiness. Review confirmed no leaked third-party code and that the isolation + backward-compat invariants hold. Independent reimplementation — no SamaSante source fetched or copied.
+
+**Files changed:**
+
+- `src/liquid-glass.tsx` (modified)
+- `src/types.ts` (modified)
+- `src/index.ts` (modified)
+- `src/liquid-glass.native.tsx` (modified)
+- `src/liquid-glass.test.tsx` (modified)
+- `src/liquid-glass.stories.tsx` (modified)
+- `e2e/cross-browser-refraction.spec.ts` (created)
+
+**Commit:** `e0dc6af` — `feat(liquid-glass): cross-browser refraction via element filter on a copy`

@@ -511,6 +511,192 @@ describe('content isolation', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Plan 030 — cross-browser copy refraction (element filter over a COPY).
+// ---------------------------------------------------------------------------
+
+describe('cross-browser copy refraction (plan 030)', () => {
+  /** Find the refracted copy layer wrapper (the aria-hidden sibling). */
+  function getRefractionLayer(container: HTMLElement): HTMLElement | null {
+    return container.querySelector<HTMLElement>('[data-lg-refraction]');
+  }
+
+  /** Find the element that actually carries the element `filter: url(#…)`. */
+  function getFilteredCopy(container: HTMLElement): HTMLElement | null {
+    return container.querySelector<HTMLElement>('[data-lg-refraction-copy]');
+  }
+
+  it('DEFAULT (no refract/size/center) renders NO copy layer and no -copy filter', () => {
+    // The whole path is opt-in; absent all three props the render is the 023
+    // behavior byte-for-byte (no extra layer, no element filter).
+    const { container } = render(
+      <LiquidGlass displacement>
+        <span>hi</span>
+      </LiquidGlass>,
+    );
+    expect(getRefractionLayer(container)).toBeNull();
+    expect(getFilteredCopy(container)).toBeNull();
+    expect(container.querySelector('filter[id$="-copy"]')).toBeNull();
+  });
+
+  it('refract={node}: the copy layer carries an ELEMENT filter: url(#…-copy), NOT backdrop-filter', () => {
+    const { container } = render(
+      <LiquidGlass refract={<span data-testid="bg">photo</span>}>
+        <span>crisp</span>
+      </LiquidGlass>,
+    );
+    const filtered = getFilteredCopy(container);
+    expect(filtered).not.toBeNull();
+    // Element `filter` (the cross-browser mechanism), not backdrop-filter.
+    expect(filtered?.style.filter).toMatch(/^url\(#lg-[^)]+-copy\)$/);
+    expect(styleOf(filtered as HTMLElement, 'backdropFilter')).toBe('');
+    // The referenced <filter> graph exists.
+    const id = filtered?.style.filter.match(/url\(#(lg-[^)]+)\)/)?.[1] as string;
+    expect(container.querySelector(`#${id}`)).not.toBeNull();
+    // It runs the SVG displacement graph (feDisplacementMap present).
+    expect(container.querySelector(`#${id} feDisplacementMap`)).not.toBeNull();
+  });
+
+  it('content isolation holds: the crisp children are a SIBLING of (not inside) the filtered copy', () => {
+    const { container, getByTestId } = render(
+      <LiquidGlass refract={<span>photo</span>}>
+        <button type="button" data-testid="cta">
+          Buy
+        </button>
+      </LiquidGlass>,
+    );
+    const cta = getByTestId('cta');
+    const filtered = getFilteredCopy(container) as HTMLElement;
+    const refractionLayer = getRefractionLayer(container) as HTMLElement;
+    const content = container.querySelector('[data-lg-content]');
+
+    // The crisp interactive child is in the content layer, NOT inside the warp.
+    expect(content?.contains(cta)).toBe(true);
+    expect(filtered.contains(cta)).toBe(false);
+    expect(refractionLayer.contains(cta)).toBe(false);
+    // The two are siblings; neither contains the other (the warp never touches
+    // real interactive content).
+    expect(refractionLayer.contains(content as Node)).toBe(false);
+    expect((content as HTMLElement).contains(refractionLayer)).toBe(false);
+  });
+
+  it('keeps the refracted copy decorative: aria-hidden + inert + pointer-events:none', () => {
+    const { container } = render(
+      <LiquidGlass refract={<span>photo</span>}>
+        <span>crisp</span>
+      </LiquidGlass>,
+    );
+    const layer = getRefractionLayer(container) as HTMLElement;
+    expect(layer.getAttribute('aria-hidden')).toBe('true');
+    expect(layer.hasAttribute('inert')).toBe(true);
+    expect(layer.style.pointerEvents).toBe('none');
+  });
+
+  it('in-place mode (size given, no refract): refracts a copy of the OWN children via element filter', () => {
+    const { container } = render(
+      <LiquidGlass size={{ width: 320, height: 96 }}>
+        <span>label</span>
+      </LiquidGlass>,
+    );
+    const filtered = getFilteredCopy(container);
+    expect(filtered).not.toBeNull();
+    expect(filtered?.style.filter).toMatch(/^url\(#lg-[^)]+-copy\)$/);
+    // A copy of the children is inside the FILTERED element (the warp target).
+    expect(filtered?.textContent).toContain('label');
+    // The crisp original still lives in the content layer.
+    expect(container.querySelector('[data-lg-content]')?.textContent).toContain('label');
+  });
+
+  it('center opts in too and drives the transform-origin of the filtered copy', () => {
+    const { container } = render(
+      <LiquidGlass center={{ x: 0.25, y: 0.75 }}>
+        <span>label</span>
+      </LiquidGlass>,
+    );
+    const filtered = getFilteredCopy(container) as HTMLElement;
+    expect(filtered).not.toBeNull();
+    expect(filtered.style.transformOrigin).toBe('25.00% 75.00%');
+  });
+
+  it('paints the `behind` bleed fill on the filtered copy element', () => {
+    const { container } = render(
+      <LiquidGlass refract={<span>photo</span>} behind="rgb(10, 20, 30)">
+        <span>crisp</span>
+      </LiquidGlass>,
+    );
+    const filtered = getFilteredCopy(container) as HTMLElement;
+    expect(styleOf(filtered, 'background')).toContain('rgb(10, 20, 30)');
+  });
+
+  it('is CROSS-BROWSER: the element filter renders even when canRefract is FALSE (Firefox/Safari)', () => {
+    // This is the whole point — unlike the Chromium-only backdrop-filter:url()
+    // path, an element filter runs in Firefox/WebKit, so the copy refraction is
+    // present on a non-Chromium (caps(false, true)) engine.
+    mockCapabilities.mockReturnValue(caps(false, true));
+    const { container } = render(
+      <LiquidGlass refract={<span>photo</span>}>
+        <span>crisp</span>
+      </LiquidGlass>,
+    );
+    const filtered = getFilteredCopy(container);
+    expect(filtered?.style.filter).toMatch(/url\(#lg-[^)]+-copy\)/);
+    expect(container.querySelector('filter[id$="-copy"]')).not.toBeNull();
+    // And it is an ELEMENT filter — the backdrop stays the frosted (no-url) recipe.
+    expect(getSurface(container).style.backdropFilter).not.toMatch(/url\(#/);
+  });
+
+  it('drops the copy refraction under prefers-reduced-transparency', () => {
+    installMatchMedia({ reducedTransparency: true });
+    const { container } = render(
+      <LiquidGlass refract={<span>photo</span>}>
+        <span>crisp</span>
+      </LiquidGlass>,
+    );
+    expect(getRefractionLayer(container)).toBeNull();
+    expect(container.querySelector('filter[id$="-copy"]')).toBeNull();
+  });
+
+  it('composes with the 023 backdrop path: both url() filters render when displacement + refract are set', () => {
+    // Chromium (default caps) with displacement AND refract: the surface carries
+    // the backdrop url(#id) bend AND the copy layer carries the element
+    // url(#id-copy) refraction — the two independent <filter> graphs coexist.
+    const { container } = render(
+      <LiquidGlass displacement refract={<span>photo</span>}>
+        <span>crisp</span>
+      </LiquidGlass>,
+    );
+    expect(getSurface(container).style.backdropFilter).toMatch(/url\(#lg-[^)]+\)/);
+    expect(getFilteredCopy(container)?.style.filter).toMatch(/url\(#lg-[^)]+-copy\)/);
+    // Two distinct filter graphs (the backdrop one has no -copy suffix).
+    expect(container.querySelector('filter[id$="-copy"]')).not.toBeNull();
+    const nonCopy = [...container.querySelectorAll('filter')].filter(
+      (f) => !(f.getAttribute('id') ?? '').endsWith('-copy'),
+    );
+    expect(nonCopy.length).toBeGreaterThan(0);
+  });
+
+  it('renders the copy-refraction path without console.error / console.warn', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    for (const c of [caps(true), caps(false, true), caps(false, false)]) {
+      mockCapabilities.mockReturnValue(c);
+      const { unmount } = render(
+        <LiquidGlass refract={<span>photo</span>} size={{ width: 200, height: 80 }} behind="#123">
+          <button type="button">Buy</button>
+        </LiquidGlass>,
+      );
+      act(() => {
+        fireEvent.mouseMove(document, { clientX: 200, clientY: 60 });
+      });
+      unmount();
+    }
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+});
+
 describe('elastic motion + rim lighting (plan 005)', () => {
   function getShadow(container: HTMLElement): HTMLElement {
     const el = container.querySelector<HTMLElement>('[data-lg-shadow]');
