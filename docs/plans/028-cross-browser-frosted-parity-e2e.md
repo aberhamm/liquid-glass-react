@@ -1,13 +1,16 @@
 ---
 id: 028
 title: Cross-browser e2e for frosted parity and displacement-only-where-supported
-status: in-progress
+status: done
 blocked-by: [023, 027]
 priority:
 goal: cross-browser-expo-liquid-glass
 allows-migrations: false
 needs-review: none
 created: 2026-06-22
+completed: 2026-07-01
+reviewed: false
+qa: automated
 ---
 
 ## Requirements
@@ -75,3 +78,16 @@ Testing approach: E2E
 - [cmd] `pnpm e2e`
 - [assert] `ls e2e/*-snapshots/ | grep -E "firefox|webkit"` outputs frosted baseline filenames for both engines
 - [manual] Spot-check the committed firefox/webkit frosted baselines look consistent with chromium.
+
+## Implementation Notes
+
+Added `e2e/frosted-parity.spec.ts` asserting the frosted recipe is STRUCTURALLY present on all three engines (chromium/firefox/webkit): `backdrop-filter` contains `blur()`+`saturate()` and never `url(`, the tint fill is a translucent-white surface `backgroundColor`, the hairline ring is an inset box-shadow keyed on its distinctive 0.5 white alpha (distinct from every bevel inset), and the decoupled outer drop shadow (`rgba(0,0,0,...)` on `[data-lg-shadow]`, never inset) is present. It also carries a self-contained displacement-only-on-chromium assertion (url( present on chromium, absent+blur on firefox/webkit). Committed per-engine visual baselines for all three engines. No component/story changes; two lint issues the new file introduced (parseFloat, a non-null assertion) were fixed so the spec adds zero lint violations. Full suite: 65 passed / 22 skipped / 0 failed.
+
+**Files changed:**
+
+- `e2e/frosted-parity.spec.ts` (created)
+- `e2e/frosted-parity.spec.ts-snapshots/frosted-parity-glass-chromium-darwin.png` (created)
+- `e2e/frosted-parity.spec.ts-snapshots/frosted-parity-glass-firefox-darwin.png` (created)
+- `e2e/frosted-parity.spec.ts-snapshots/frosted-parity-glass-webkit-darwin.png` (created)
+
+**Commit:** `e109e76` — `test(e2e): cross-browser frosted parity spec + per-engine baselines`
