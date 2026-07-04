@@ -54,6 +54,8 @@ expressed as a **minor** bump rather than a major.
   matrix, plus API-reference entries for `displacement`/`refract`/`size`/`center`/
   `behind`.
 
+<!-- commits: e0deb1a, 6c0bf86, 49259d0, 2048d70, 9bc5793, 2b946ce, 92ace23, 8ba10b9, 9402117, 330872f, 4da39a3 -->
+
 ## [Unreleased] - 2026-06-18
 
 Apple-tier enhancement round. Every new behavior is **additive and opt-in** —
