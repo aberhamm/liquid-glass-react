@@ -44,16 +44,24 @@ const config: StorybookConfig = {
       config.build.rollupOptions = undefined;
     }
 
-    // 3. Remove vite-plugin-dts from the plugin list. The dts plugin registers
-    //    under the name 'vite:dts'; filter any plugin whose name starts with
-    //    'vite:dts' so type emission never runs inside the Storybook build.
+    // 3. Remove the library-build-only declaration plugins from the plugin list.
+    //    Both exist solely to emit published-package types and must never run
+    //    inside a Storybook build:
+    //      - 'vite:dts'             — vite-plugin-dts, emits index.d.ts.
+    //      - 'emit-cjs-declaration' — copies dist/index.d.ts -> dist/index.d.cts
+    //        in closeBundle. On a fresh clone dist/ does not exist yet, so this
+    //        copy throws ENOENT and fails `build-storybook` (and thus `e2e`).
+    //    Filter both so neither participates in the Storybook build.
     if (Array.isArray(config.plugins)) {
       config.plugins = config.plugins.filter((plugin) => {
         const name =
           plugin && typeof plugin === 'object' && 'name' in plugin
             ? (plugin as { name?: string }).name
             : undefined;
-        return !(typeof name === 'string' && name.startsWith('vite:dts'));
+        return !(
+          typeof name === 'string' &&
+          (name.startsWith('vite:dts') || name === 'emit-cjs-declaration')
+        );
       });
     }
 
