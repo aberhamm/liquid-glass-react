@@ -6,12 +6,15 @@
  * over a calm, realistic surface — an Apple-Photos-style header plus a responsive
  * grid of photo thumbnails — instead of a loud synthetic neon image.
  *
- * The thumbnails are pure-CSS scenic gradients (no downloaded photos), which:
- *   - are same-origin by definition (zero license/CORS risk),
- *   - are lightweight (no asset bytes), and
- *   - give sharp tile EDGES + real luminance variation so `<LiquidGlass>`
- *     refraction reads clearly and the DOM-background luminance sampler has
- *     light vs dark regions to react to.
+ * The thumbnails are real photographs bundled same-origin under
+ * `public/backdrops/` (see {@link BACKDROP_PHOTOS}), which:
+ *   - are same-origin (zero CORS taint, so the adaptiveTint canvas sampler still
+ *     reads them) and excluded from the npm package, and
+ *   - carry genuine high-frequency detail + luminance variation, so `<LiquidGlass>`
+ *     refraction / blur / saturation read far more clearly than over flat color.
+ * The dense small-tile MOSAICS (Playground, Refract) still use the CSS-gradient
+ * {@link photoTileBackground} — there a photo per 40-76px cell would just read as
+ * noise; the big Photos-app grid is where real imagery matters.
  */
 import type { CSSProperties, ReactElement } from 'react';
 
@@ -94,19 +97,62 @@ export function photoTileBackground(index: number): string {
 }
 
 /**
+ * Real photographs bundled same-origin under `public/backdrops/` (served by
+ * Storybook's `staticDirs`). These replace the scenic CSS-gradient tiles as the
+ * grid content so the glass floats over genuine detail — the single biggest thing
+ * that makes refraction / blur / saturation read. Same-origin (no CORS taint, so
+ * the adaptiveTint canvas sampler still works), excluded from the npm package
+ * (`files: ["dist"]` + `publicDir: false`). Keys double as the `backdrop` control
+ * options in the stories.
+ */
+export type BackdropPhoto = { key: string; src: string; label: string };
+
+const FALLBACK_PHOTO: BackdropPhoto = {
+  key: 'reflection',
+  src: '/backdrops/water-reflection.jpg',
+  label: 'Reflection',
+};
+
+export const BACKDROP_PHOTOS: readonly BackdropPhoto[] = [
+  FALLBACK_PHOTO,
+  { key: 'shoreline', src: '/backdrops/shoreline.jpg', label: 'Shoreline' },
+  { key: 'autumn', src: '/backdrops/autumn-path.jpg', label: 'Autumn' },
+  { key: 'alpine', src: '/backdrops/alpine-clouds.jpg', label: 'Alpine clouds' },
+  { key: 'city', src: '/backdrops/city-dusk.jpg', label: 'City dusk' },
+];
+
+/**
+ * Cycle the real-photo set by index, always returning a photo (safe under
+ * `noUncheckedIndexedAccess`), so a grid can fill any tile count from the set.
+ */
+export function backdropPhotoAt(index: number): BackdropPhoto {
+  const list = BACKDROP_PHOTOS;
+  if (list.length === 0) return FALLBACK_PHOTO;
+  const i = ((index % list.length) + list.length) % list.length;
+  return list[i] ?? FALLBACK_PHOTO;
+}
+
+/** Resolve a photo by its `key` (the value used by the `backdrop` control). */
+export function backdropPhotoByKey(key: string): BackdropPhoto {
+  return BACKDROP_PHOTOS.find((p) => p.key === key) ?? FALLBACK_PHOTO;
+}
+
+/**
  * Pinterest-ish staggered tile heights, cycled per index so the grid reads like
  * a real photo library rather than a uniform checkerboard.
  */
 const TILE_HEIGHTS = [180, 240, 200, 280, 220, 260] as const;
 
-function PhotoThumb({ tile, height }: { tile: PhotoTile; height: number }): ReactElement {
+function PhotoThumb({ photo, height }: { photo: BackdropPhoto; height: number }): ReactElement {
   return (
     <div
-      aria-label={tile.label}
+      aria-label={photo.label}
       style={{
         height,
         borderRadius: 18,
-        background: tile.background,
+        backgroundImage: `url(${photo.src})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
         boxShadow: '0 6px 16px rgba(15, 23, 42, 0.18), inset 0 1px 0 rgba(255,255,255,0.25)',
       }}
     />
@@ -139,7 +185,7 @@ export type PhotosAppBackdropProps = {
 /**
  * A calm Apple-Photos-style surface: a sticky-feeling header row ("Photos" title
  * + search / add / more affordances) above a responsive masonry-ish grid of
- * scenic gradient thumbnails. Static by design (no animation) so it stays
+ * real photo thumbnails. Static by design (no animation) so it stays
  * reduced-motion-safe and visually quiet behind the glass.
  */
 export function PhotosAppBackdrop({
@@ -147,7 +193,10 @@ export function PhotosAppBackdrop({
   tileCount,
   style,
 }: PhotosAppBackdropProps): ReactElement {
-  const tiles = PHOTO_TILES.slice(0, tileCount ?? PHOTO_TILES.length);
+  // Fill the grid from the real-photo set, cycling it so a full library reads
+  // even though the set is small. Default to a dozen tiles for a rich page.
+  const count = tileCount ?? 12;
+  const tiles = Array.from({ length: count }, (_, i) => backdropPhotoAt(i));
   return (
     <div
       style={{
@@ -235,10 +284,11 @@ export function PhotosAppBackdrop({
           padding: 'clamp(1.25rem, 4vw, 3rem)',
         }}
       >
-        {tiles.map((tile, i) => (
+        {tiles.map((photo, i) => (
           <PhotoThumb
-            key={tile.label}
-            tile={tile}
+            // Photos repeat across the cycled grid, so the index disambiguates.
+            key={`${photo.key}-${i}`}
+            photo={photo}
             height={TILE_HEIGHTS[i % TILE_HEIGHTS.length] ?? 220}
           />
         ))}

@@ -1,7 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { type ReactElement, useCallback, useRef, useState } from 'react';
 import { LiquidGlass } from './liquid-glass';
-import { PhotosAppBackdrop, SANS_FONT, photoTileBackground } from './photos-app-backdrop';
+import {
+  BACKDROP_PHOTOS,
+  PhotosAppBackdrop,
+  SANS_FONT,
+  backdropPhotoAt,
+  photoTileBackground,
+} from './photos-app-backdrop';
 import type { DisplacementMode, LiquidGlassProps, MousePos } from './types';
 import { useGlassCapabilities } from './use-glass-capabilities';
 
@@ -158,6 +164,223 @@ const glassLabel = (text: string): ReactElement => (
     {text}
   </span>
 );
+
+/**
+ * Hero: the landing showcase. A full-bleed REAL photograph (bundled same-origin
+ * under `public/backdrops/`) with a draggable refraction panel floating over it.
+ * Drag the glass across the scene to watch real detail bend through the
+ * displacement, and switch photos to see the effect over different content. This
+ * is the story that answers "what does the glass actually DO": over a real
+ * photograph the edge-bending, chromatic aberration and frost read instantly in a
+ * way flat color tiles never show. Refraction renders on Chromium and degrades to
+ * the frosted base elsewhere. Reduced-motion-safe (nothing auto-animates; motion
+ * is user-driven by dragging).
+ */
+const HeroStory = (args: LiquidGlassProps): ReactElement => {
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [photoIndex, setPhotoIndex] = useState(0);
+  // Glass top-left within the stage, in CSS pixels.
+  const [pos, setPos] = useState<MousePos>({ x: 96, y: 140 });
+  // Controlled pointer position fed to the primitive (viewport coords).
+  const [globalMousePos, setGlobalMousePos] = useState<MousePos | undefined>(undefined);
+  const dragging = useRef(false);
+  const grab = useRef<MousePos>({ x: 0, y: 0 });
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const rect = stage.getBoundingClientRect();
+      grab.current = { x: e.clientX - rect.left - pos.x, y: e.clientY - rect.top - pos.y };
+      dragging.current = true;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      setGlobalMousePos({ x: e.clientX, y: e.clientY });
+    },
+    [pos.x, pos.y],
+  );
+
+  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    setGlobalMousePos({ x: e.clientX, y: e.clientY });
+    if (!dragging.current) return;
+    const stage = stageRef.current;
+    if (!stage) return;
+    const rect = stage.getBoundingClientRect();
+    const maxX = rect.width - 340;
+    const maxY = rect.height - 220;
+    const nx = Math.min(Math.max(0, e.clientX - rect.left - grab.current.x), Math.max(0, maxX));
+    const ny = Math.min(Math.max(0, e.clientY - rect.top - grab.current.y), Math.max(0, maxY));
+    setPos({ x: nx, y: ny });
+  }, []);
+
+  const endDrag = useCallback(() => {
+    dragging.current = false;
+  }, []);
+
+  const photo = backdropPhotoAt(photoIndex);
+
+  return (
+    <div
+      ref={stageRef}
+      style={{
+        position: 'relative',
+        minHeight: '100vh',
+        width: '100%',
+        overflow: 'hidden',
+        // `touch-action: none` lets the panel be dragged on touch screens without
+        // the browser hijacking the gesture for scrolling.
+        touchAction: 'none',
+        fontFamily: SANS_FONT,
+      }}
+    >
+      {/* Full-bleed real photo — the backdrop the glass refracts. Painted as a
+          SIBLING behind the glass (not a wrapper around it) so the glass's
+          backdrop-filter samples it, same as the Draggable story's backdrop. */}
+      <div
+        aria-label={`${photo.label} photo backdrop`}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: `url(${photo.src})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      />
+
+      <p
+        style={{
+          position: 'absolute',
+          top: 16,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          margin: 0,
+          padding: '8px 16px',
+          borderRadius: 999,
+          background: 'rgba(15, 23, 42, 0.7)',
+          color: '#fff',
+          fontSize: '0.875rem',
+          pointerEvents: 'none',
+          zIndex: 2,
+        }}
+      >
+        Drag the panel across the photo — real detail bends through the glass.
+      </p>
+
+      {/* Switch the photo behind the glass to see refraction over different scenes. */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 20,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          display: 'flex',
+          gap: 8,
+          zIndex: 4,
+        }}
+      >
+        {BACKDROP_PHOTOS.map((p, i) => (
+          <button
+            key={p.key}
+            type="button"
+            onClick={() => setPhotoIndex(i)}
+            style={{
+              padding: '7px 15px',
+              borderRadius: 999,
+              border: 'none',
+              cursor: 'pointer',
+              fontFamily: SANS_FONT,
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              color: i === photoIndex ? '#0f172a' : '#fff',
+              background: i === photoIndex ? 'rgba(255,255,255,0.92)' : 'rgba(15,23,42,0.5)',
+            }}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      <div
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        style={{
+          position: 'absolute',
+          left: pos.x,
+          top: pos.y,
+          zIndex: 3,
+          cursor: dragging.current ? 'grabbing' : 'grab',
+          touchAction: 'none',
+        }}
+      >
+        {/* Story-owned props (the controlled drag + the label) are set here;
+            everything else spreads from the Controls panel via {...args}. */}
+        <LiquidGlass {...args} globalMousePos={globalMousePos} mouseContainer={stageRef}>
+          <div style={{ color: '#fff', maxWidth: '16rem', pointerEvents: 'none' }}>
+            <p
+              style={{
+                margin: '0 0 0.4rem',
+                fontSize: '0.7rem',
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                opacity: 0.85,
+              }}
+            >
+              Liquid Glass
+            </p>
+            <strong
+              style={{
+                display: 'block',
+                fontSize: '1.4rem',
+                lineHeight: 1.15,
+                marginBottom: '0.4rem',
+              }}
+            >
+              Drag me over the photo
+            </strong>
+            <span style={{ fontSize: '0.9rem', opacity: 0.92, lineHeight: 1.5 }}>
+              Real detail refracts and bends at the edges as the glass moves.
+            </span>
+          </div>
+        </LiquidGlass>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * The landing story: a draggable refraction panel over a real full-bleed photo.
+ * Placed first so it is the default view when the component is opened.
+ */
+export const Hero: Story = {
+  // Defaults preserve the designed look; every value is live in the Controls panel.
+  args: {
+    children: null,
+    displacement: true,
+    cornerRadius: 32,
+    padding: '34px 40px',
+    displacementScale: 100,
+    aberrationIntensity: 4,
+    saturation: 160,
+  },
+  parameters: {
+    layout: 'fullscreen',
+    // Supplies its own full-bleed photo stage — opt out of the centered global
+    // backdrop. Controls ARE live here (single-glass story).
+    noBackdrop: true,
+    docs: {
+      description: {
+        story:
+          'The landing showcase: drag the glass panel across a REAL photograph and ' +
+          'watch the detail bend through it (refraction on Chromium; frosted ' +
+          'fallback elsewhere). Switch photos with the pills to see the effect over ' +
+          'different scenes. This is what the glass looks like doing its actual job ' +
+          'over real content, rather than flat color.',
+      },
+    },
+  },
+  render: (args) => <HeroStory {...args} />,
+};
 
 // How many mosaic cells to render — enough to overfill the inset:-10% area at
 // the cell size below so the glass always has dense content behind it.
@@ -677,13 +900,17 @@ const PORTABLE_CSS = `
  * backdrop with a legend that names each portable element.
  */
 export const PortableHighlights: Story = {
-  args: { children: null },
+  // Defaults preserve the designed look; every value is live in the Controls panel.
+  args: {
+    children: null,
+    cornerRadius: 28,
+    padding: '36px 40px',
+    displacementScale: 80,
+    saturation: 160,
+  },
   parameters: {
     layout: 'fullscreen',
     noBackdrop: true,
-    // Curated story with its own fixed-prop glass — the Controls panel is inert
-    // here, so hide it; only Playground is driven by the controls.
-    controls: { disable: true },
     docs: {
       description: {
         story:
@@ -696,17 +923,11 @@ export const PortableHighlights: Story = {
       },
     },
   },
-  render: () => (
+  render: (args) => (
     <PhotosAppBackdrop>
       <style>{PORTABLE_CSS}</style>
       <div className="lg-ph__overlay">
-        <LiquidGlass
-          cornerRadius={28}
-          padding="36px 40px"
-          displacementScale={80}
-          saturation={160}
-          onClick={() => {}}
-        >
+        <LiquidGlass {...args} onClick={() => {}}>
           <div style={{ color: '#fff', maxWidth: '24rem', pointerEvents: 'none' }}>
             <p
               style={{
@@ -776,7 +997,7 @@ const SHOWCASE_CSS = `
  * existing public API: drag state feeds `globalMousePos` and the drag space is
  * scoped to the stage via `mouseContainer`. No new component.
  */
-const DraggableStory = (): ReactElement => {
+const DraggableStory = (args: LiquidGlassProps): ReactElement => {
   const stageRef = useRef<HTMLDivElement>(null);
   // Glass top-left within the stage, in CSS pixels.
   const [pos, setPos] = useState<MousePos>({ x: 40, y: 40 });
@@ -870,15 +1091,7 @@ const DraggableStory = (): ReactElement => {
           touchAction: 'none',
         }}
       >
-        <LiquidGlass
-          displacement
-          cornerRadius={28}
-          padding="28px 32px"
-          displacementScale={100}
-          aberrationIntensity={4}
-          globalMousePos={globalMousePos}
-          mouseContainer={stageRef}
-        >
+        <LiquidGlass {...args} globalMousePos={globalMousePos} mouseContainer={stageRef}>
           <div style={{ color: '#fff', maxWidth: '14rem', pointerEvents: 'none' }}>
             <strong style={{ display: 'block', fontSize: '1.05rem' }}>Drag me</strong>
             <span style={{ fontSize: '0.85rem', opacity: 0.9 }}>
@@ -892,13 +1105,18 @@ const DraggableStory = (): ReactElement => {
 };
 
 export const Draggable: Story = {
-  args: { children: null },
+  // Defaults preserve the designed look; every value is live in the Controls panel.
+  args: {
+    children: null,
+    displacement: true,
+    cornerRadius: 28,
+    padding: '28px 32px',
+    displacementScale: 100,
+    aberrationIntensity: 4,
+  },
   parameters: {
     layout: 'fullscreen',
     noBackdrop: true,
-    // Curated story with its own fixed-prop glass — the Controls panel is inert
-    // here, so hide it; only Playground is driven by the controls.
-    controls: { disable: true },
     docs: {
       description: {
         story:
@@ -909,7 +1127,7 @@ export const Draggable: Story = {
       },
     },
   },
-  render: () => <DraggableStory />,
+  render: (args) => <DraggableStory {...args} />,
 };
 
 /**
@@ -980,21 +1198,14 @@ const SCROLL_CARDS = [
   { t: 'More content', d: 'Keep going to watch the photo cards pass under the glass.' },
 ];
 
-const ScrollUnderGlassStory = (): ReactElement => {
+const ScrollUnderGlassStory = (args: LiquidGlassProps): ReactElement => {
   const scrollRef = useRef<HTMLDivElement>(null);
   return (
     <div ref={scrollRef} className="lg-scroll">
       <style>{SCROLL_UNDER_CSS}</style>
 
       <div className="lg-scroll__bar">
-        <LiquidGlass
-          displacement
-          cornerRadius={999}
-          padding="14px 30px"
-          displacementScale={90}
-          aberrationIntensity={3}
-          mouseContainer={scrollRef}
-        >
+        <LiquidGlass {...args} mouseContainer={scrollRef}>
           <span
             style={{
               color: '#fff',
@@ -1029,13 +1240,18 @@ const ScrollUnderGlassStory = (): ReactElement => {
 };
 
 export const ScrollUnderGlass: Story = {
-  args: { children: null },
+  // Defaults preserve the designed look; every value is live in the Controls panel.
+  args: {
+    children: null,
+    displacement: true,
+    cornerRadius: 999,
+    padding: '14px 30px',
+    displacementScale: 90,
+    aberrationIntensity: 3,
+  },
   parameters: {
     layout: 'fullscreen',
     noBackdrop: true,
-    // Curated story with its own fixed-prop glass — the Controls panel is inert
-    // here, so hide it; only Playground is driven by the controls.
-    controls: { disable: true },
     docs: {
       description: {
         story:
@@ -1046,7 +1262,7 @@ export const ScrollUnderGlass: Story = {
       },
     },
   },
-  render: () => <ScrollUnderGlassStory />,
+  render: (args) => <ScrollUnderGlassStory {...args} />,
 };
 
 /**
