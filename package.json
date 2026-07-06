@@ -1,6 +1,6 @@
 {
   "name": "@aberhamm/liquid-glass-react",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "An independent React reimplementation of a liquid-glass UI component library.",
   "type": "module",
   "license": "MIT",

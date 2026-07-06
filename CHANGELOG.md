@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.1] - 2026-07-06
+
+Polish fixes to the prebuilt components. No API or default-look changes.
+
+### Version bump
+
+`0.2.0` → **`0.2.1`** — a **patch** bump. Bug fixes only.
+
+### Fixed
+
+- **`GlassSegmentedControl` indicator alignment.** The sliding glass indicator
+  double-counted the track's left padding, so its left gap was larger than the
+  top/bottom gap and the last option's indicator overflowed the track's right
+  edge. The indicator now measures its offset from the track's content box, so it
+  aligns evenly on every option.
+- **`GlassButton` press-shine.** The on-press highlight rendered as a sharp
+  rectangle confined to the text — its `border-radius: inherit` resolved to `0`
+  because the glass content wrapper carried no radius. The content wrapper now
+  carries the glass corners, and the button shell fills the pill (padding moved
+  off the glass wrapper), so the shine clips to the rounded shape and sweeps the
+  whole surface. As a side effect the entire pill is now the click target
+  (previously only the label was).
+
+<!-- commits: 7c57ec5, a9e8513 -->
+
 ## [0.2.0] - 2026-07-01
 
 Cross-browser + Expo round. **This changes the default web look** (see Breaking),
