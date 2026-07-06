@@ -41,6 +41,11 @@ function emitCjsDeclaration(): Plugin {
 // for the Storybook build only. This file remains the single source of truth for
 // `pnpm build`; nothing Storybook-specific belongs here.
 export default defineConfig({
+  // `public/` exists ONLY for Storybook (see .storybook/main.ts `staticDirs`).
+  // Vite's default publicDir behavior would copy its contents (e.g. the
+  // `.gitkeep` placeholder) into `dist/`, leaking Storybook-only files into the
+  // published tarball. The library build has no static assets, so disable it.
+  publicDir: false,
   plugins: [
     dts({
       // Emit a single bundled index.d.ts alongside the JS outputs.
@@ -78,6 +83,10 @@ export default defineConfig({
         },
       },
     },
-    sourcemap: true,
+    // Sourcemaps are intentionally OFF for the published package: they roughly
+    // doubled the tarball (~435kB of maps) and consumers of a UI library rarely
+    // step into the bundled source. Flip to `true` if you need to debug the
+    // published build against original TS.
+    sourcemap: false,
   },
 });
