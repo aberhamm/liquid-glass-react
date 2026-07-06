@@ -42,11 +42,15 @@ const VARIANT_GLASS: Record<GlassButtonVariant, GlassTuning> = {
   subtle: { displacementScale: 40, blurAmount: 0.05, saturation: 120 },
 };
 
+// Padding lives on the `.lg-button` shell (see components.css), NOT on the glass
+// wrapper, so the interactive button FILLS the pill: the press-shine sweep covers
+// the whole surface (not a rectangle around the text) and the entire pill is the
+// click target. The glass only owns the shape (cornerRadius) and material tuning.
 const SIZE_GLASS: Record<GlassButtonSize, GlassTuning> = {
-  sm: { cornerRadius: 999, padding: '6px 14px' },
-  md: { cornerRadius: 999, padding: '10px 20px' },
-  lg: { cornerRadius: 999, padding: '14px 28px' },
-  icon: { cornerRadius: 999, padding: '10px' },
+  sm: { cornerRadius: 999, padding: 0 },
+  md: { cornerRadius: 999, padding: 0 },
+  lg: { cornerRadius: 999, padding: 0 },
+  icon: { cornerRadius: 999, padding: 0 },
 };
 
 /** Resolve the `lg-button*` class names from the variant/size keys. */

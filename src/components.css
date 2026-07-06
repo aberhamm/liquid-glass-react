@@ -46,6 +46,13 @@
   /* The interactive shell sits ON the LiquidGlass wrapper. Reset native
      button chrome; the glass primitive owns background/shape/shadow. */
   position: relative;
+  /* Fill the glass pill and center the label, so the shell IS the pill: the
+     press-shine covers the whole surface and the entire pill is clickable.
+     Padding (per size below) now lives here, not on the glass wrapper. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
   appearance: none;
   -webkit-appearance: none;
   border: 0;
@@ -187,20 +194,26 @@
   }
 }
 
-/* --- Button sizes (typography only; padding/radius come from LiquidGlass) --- */
+/* --- Button sizes (typography + padding; the glass owns only the shape) ---
+   Padding lives here (not on the LiquidGlass wrapper) so the shell fills the
+   pill — same overall size as before, but the shine/click-target span it all. */
 .lg-button--sm {
   font-size: 0.8125rem;
+  padding: 6px 14px;
 }
 .lg-button--md {
   font-size: 0.9375rem;
+  padding: 10px 20px;
 }
 .lg-button--lg {
   font-size: 1.0625rem;
+  padding: 14px 28px;
 }
 
 /* `icon` is a square button that centers a single icon child. */
 .lg-button--icon {
   font-size: 1rem;
+  padding: 10px;
 }
 .lg-button--icon .lg-content {
   width: 1.25em;

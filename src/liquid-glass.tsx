@@ -1013,6 +1013,12 @@ export function LiquidGlass({
   const contentStyle: CSSProperties = {
     position: 'relative',
     zIndex: 1,
+    // Carry the surface's rounded shape so children using `border-radius: inherit`
+    // (the GlassButton shell + its press-shine ::after, the GlassCard) actually
+    // pick up the glass corners instead of resolving to 0 (a rectangle). Purely
+    // for inheritance — there is no `overflow`, so this clips nothing and is
+    // visually inert on its own.
+    borderRadius: radius,
     ...(adaptiveContentColor ? { color: adaptiveContentColor } : {}),
   };
 
