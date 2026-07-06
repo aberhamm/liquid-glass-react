@@ -198,7 +198,14 @@ export const GlassSegmentedControl = forwardRef<HTMLFieldSetElement, GlassSegmen
       // Bail on a degenerate (pre-layout / jsdom-zero) container box; the CSS
       // equal-segment default stays in place rather than collapsing to 0.
       if (!Number.isFinite(containerRect.width) || containerRect.width <= 0) return;
-      const left = labelRect.left - containerRect.left;
+      // The indicator is absolutely positioned at `left: var(--lg-seg-pad)` (the
+      // track's CONTENT-left) and then nudged by `translateX`. So the translate
+      // must be measured from the content box, not the border box that
+      // `getBoundingClientRect` returns — otherwise the track's left padding is
+      // double-counted and the indicator sits one padding-width too far right
+      // (uneven left gap; the last option overflows the track's right edge).
+      const paddingLeft = Number.parseFloat(getComputedStyle(container).paddingLeft) || 0;
+      const left = labelRect.left - containerRect.left - paddingLeft;
       const width = labelRect.width;
       if (!Number.isFinite(left) || !Number.isFinite(width) || width <= 0) return;
       setIndicatorRect((prev) =>
