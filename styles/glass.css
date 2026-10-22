@@ -1,0 +1,118 @@
+/* Matui controls powered by @samasante/liquid-glass. Import once per app. */
+.matui-glass-button-shell {
+  position: relative;
+  display: inline-flex;
+  border-radius: 999px;
+  vertical-align: middle;
+  color: var(--matui-glass-fg, #17332e);
+}
+.matui-glass-button-shell > [data-liquid-glass] {
+  background: #ffffff32;
+}
+.matui-glass-button-shell.matui-glass-button--primary {
+  background: #117a6c88;
+  color: #102e28;
+}
+.matui-glass-button--secondary {
+  background: #ffffff30;
+}
+.matui-glass-button--subtle {
+  background: #ffffff10;
+}
+.matui-glass-button {
+  position: relative;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.matui-glass-button--sm {
+  padding: 8px 14px;
+  font-size: 13px;
+}
+.matui-glass-button--md {
+  padding: 12px 22px;
+  font-size: 14px;
+}
+.matui-glass-button--lg {
+  padding: 16px 28px;
+  font-size: 16px;
+}
+.matui-glass-button--icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+}
+.matui-glass-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.matui-glass-button-shell:has(:disabled) {
+  opacity: 0.6;
+}
+.matui-glass-button:hover:enabled {
+  background: #ffffff18;
+}
+.matui-glass-button:focus-visible,
+.matui-glass-control:focus-within,
+.matui-glass-segment:focus-within {
+  outline: 3px solid var(--matui-glass-focus, #195fbb);
+  outline-offset: 4px;
+}
+.matui-glass-card {
+  display: inline-block;
+  max-width: 100%;
+  border-radius: 28px;
+  background: #ffffff22;
+  color: var(--matui-glass-fg, inherit);
+}
+.matui-glass-card--raised {
+  box-shadow: 0 8px 24px #172e2918;
+}
+.matui-glass-card--floating {
+  box-shadow: 0 18px 48px #172e2930;
+}
+.matui-glass-segmented {
+  margin: 0;
+  padding: 5px;
+  min-width: 0;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border: 1px solid #ffffff66;
+  border-radius: 24px;
+  background: #ffffff22;
+  color: var(--matui-glass-fg, inherit);
+}
+.matui-glass-segment {
+  position: relative;
+  border-radius: 18px;
+}
+.matui-glass-segment label {
+  position: relative;
+  display: block;
+  padding: 10px 18px;
+  cursor: pointer;
+}
+.matui-glass-segment input,
+.matui-glass-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.matui-glass-segment:has(:disabled) {
+  opacity: 0.45;
+}
+.matui-glass-segment:has(:disabled) label {
+  cursor: not-allowed;
+}

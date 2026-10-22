@@ -29,7 +29,7 @@ export default defineConfig({
 
   use: {
     // All tests use the static Storybook server
-    baseURL: 'http://localhost:6006',
+    baseURL: 'http://127.0.0.1:61926',
     // Capture a screenshot + trace on first retry only (CI evidence)
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
@@ -64,8 +64,8 @@ export default defineConfig({
    * reuseExistingServer: true locally so repeated runs skip the serve startup wait.
    */
   webServer: {
-    command: 'pnpm exec http-server storybook-static -p 6006 -s -c-1',
-    url: 'http://localhost:6006',
+    command: 'corepack pnpm exec http-server storybook-static -p 61926 -s -c-1',
+    url: 'http://127.0.0.1:61926',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
   },

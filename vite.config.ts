@@ -77,6 +77,7 @@ export default defineConfig({
       // React is a peer dependency and must never be bundled.
       external: ['react', 'react-dom', 'react/jsx-runtime'],
       output: {
+        banner: '"use client";',
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM',

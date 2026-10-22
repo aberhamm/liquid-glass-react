@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@samasante/liquid-glass':
+        specifier: 0.1.1
+        version: 0.1.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
       '@arethetypeswrong/cli':
         specifier: ^0.18.3
@@ -38,6 +42,9 @@ importers:
       '@testing-library/react-native':
         specifier: ^14.0.1
         version: 14.0.1(react-native@0.83.10(@babel/core@7.29.7)(@types/react@18.3.31)(react@18.3.1))(react@18.3.1)
+      '@testing-library/user-event':
+        specifier: ^14.6.7
+        version: 14.6.8(@testing-library/dom@10.4.1)
       '@types/react':
         specifier: ^18.3.18
         version: 18.3.31
@@ -986,6 +993,12 @@ packages:
   '@rushstack/ts-command-line@5.3.10':
     resolution: {integrity: sha512-fwI076HYknC0IrMXdY6UmjDv+PH7NHhNJX3/pY2UblSE5XrXgndXZPiOe/6ZtuFpn6DvVDVNhtkIzQ+Qu/MhVQ==}
 
+  '@samasante/liquid-glass@0.1.1':
+    resolution: {integrity: sha512-i4cQzlwmpYnVl9eBDuBFyPsOsuBMMYDp1ijxul5Z/H+ns5aQ1qiVV5pTEBbO4EQo8ct+eVlS9bVZW8YUfX6nXg==}
+    peerDependencies:
+      react: '>=18'
+      react-dom: '>=18'
+
   '@sinclair/typebox@0.27.10':
     resolution: {integrity: sha512-MTBk/3jGLNB2tVxv6uLlFh1iu64iYOQ2PbdOSK3NW8JZsmlaOh2q6sdtKowBhfw8QFLmYNzTW4/oK4uATIi6ZA==}
 
@@ -1194,6 +1207,12 @@ packages:
         optional: true
       '@types/react-dom':
         optional: true
+
+  '@testing-library/user-event@14.6.8':
+    resolution: {integrity: sha512-vgSSqnANMnkcYR/vUNDbwS7aM3OErRLNUG8vCVVlj4oc6cKffUrccX7UAS5AmJQQNZTSibi9z5GvvRZ0aYgUCQ==}
+    engines: {node: '>=12', npm: '>=6'}
+    peerDependencies:
+      '@testing-library/dom': '>=7.21.4'
 
   '@types/argparse@1.0.38':
     resolution: {integrity: sha512-ebDJ9b0e702Yr7pWgB0jzm+CX4Srzz8RcXtLJDJB+BSccqMa36uyH/zUsSYao5+BD1ytv3k3rPYCq4mAE1hsXA==}
@@ -4135,6 +4154,11 @@ snapshots:
     transitivePeerDependencies:
       - '@types/node'
 
+  '@samasante/liquid-glass@0.1.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+
   '@sinclair/typebox@0.27.10': {}
 
   '@sinclair/typebox@0.34.49': {}
@@ -4380,6 +4404,10 @@ snapshots:
     optionalDependencies:
       '@types/react': 18.3.31
       '@types/react-dom': 18.3.7(@types/react@18.3.31)
+
+  '@testing-library/user-event@14.6.8(@testing-library/dom@10.4.1)':
+    dependencies:
+      '@testing-library/dom': 10.4.1
 
   '@types/argparse@1.0.38': {}
 

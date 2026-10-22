@@ -3,19 +3,19 @@
 import assert from 'node:assert';
 import {
   GlassButton,
+  GlassNotification,
   GlassSegmentedControl,
+  GlassSwitch,
   LiquidGlass,
   VERSION,
-  detectGlassCapabilities,
-  useGlassCapabilities,
 } from '@aberhamm/liquid-glass-react';
 
 for (const [name, value] of Object.entries({
   LiquidGlass,
   GlassButton,
   GlassSegmentedControl,
-  useGlassCapabilities,
-  detectGlassCapabilities,
+  GlassSwitch,
+  GlassNotification,
 })) {
   assert.ok(value != null, `expected ${name} to be exported`);
 }

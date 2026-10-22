@@ -1,7 +1,7 @@
 {
   "name": "@aberhamm/liquid-glass-react",
-  "version": "0.2.1",
-  "description": "An independent React reimplementation of a liquid-glass UI component library.",
+  "version": "0.3.0",
+  "description": "React liquid-glass components powered by the samasante liquid-glass engine, with a separate native frosted surface.",
   "type": "module",
   "license": "MIT",
   "author": "Matthew Aberham",
@@ -27,7 +27,7 @@
   },
   "packageManager": "pnpm@10.33.3",
   "sideEffects": ["**/*.css"],
-  "files": ["dist"],
+  "files": ["dist", "licenses"],
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -117,6 +117,10 @@
     "typescript": "^5.7.3",
     "vite": "^6.0.7",
     "vite-plugin-dts": "^4.4.0",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "@testing-library/user-event": "^14.6.7"
+  },
+  "dependencies": {
+    "@samasante/liquid-glass": "0.1.1"
   }
 }

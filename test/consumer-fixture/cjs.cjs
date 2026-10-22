@@ -7,8 +7,8 @@ for (const name of [
   'LiquidGlass',
   'GlassButton',
   'GlassSegmentedControl',
-  'useGlassCapabilities',
-  'detectGlassCapabilities',
+  'GlassSwitch',
+  'GlassNotification',
 ]) {
   assert.ok(pkg[name] != null, `expected ${name} to be exported`);
 }

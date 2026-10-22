@@ -22,7 +22,7 @@ import type { StorybookConfig } from '@storybook/react-vite';
  * boundary (library build / Vitest / Storybook) clean with zero config bleed.
  */
 const config: StorybookConfig = {
-  stories: ['../src/**/*.stories.@(ts|tsx)'],
+  stories: ['../stories/**/*.stories.@(ts|tsx)'],
   addons: ['@storybook/addon-essentials'],
   // Serve anything under public/ SAME-ORIGIN. The demo backdrop is now built
   // from same-origin CSS scenic-gradient tiles (see src/photos-app-backdrop.tsx),

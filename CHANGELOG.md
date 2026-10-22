@@ -1,3 +1,14 @@
+# 0.3.0
+
+- Replace the web renderer with the pinned `@samasante/liquid-glass@0.1.1` engine.
+- Adapt upstream switch, slider and notification recipes and retain matui's button,
+  card and segmented-control compositions in this standalone package.
+- Export `Glass` and `LiquidGlass` (alias) with the upstream API. Old web-specific
+  capabilities, displacement helpers and motion utilities are removed from the
+  public API; see README for migration. Preserve the separate native frosted API.
+- Preserve ESM, CommonJS, stylesheet and React Native package entry points.
+- Add controlled/uncontrolled control, native form and reduced-motion behavior.
+
 # Changelog
 
 All notable changes to this project will be documented in this file.

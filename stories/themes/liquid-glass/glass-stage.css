@@ -1,0 +1,72 @@
+.matui-glass-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 400px;
+  padding: 48px 24px;
+  overflow: hidden;
+  isolation: isolate;
+  background: radial-gradient(ellipse at 20% 20%, #f9ce96, transparent 55%),
+    radial-gradient(ellipse at 80% 70%, #73b6b3, transparent 60%), #dfebcf;
+  color: #172e29;
+  font-family: "Avenir Next", Avenir, sans-serif;
+  --matui-glass-fg: #172e29;
+  --matui-glass-focus: #215a54;
+}
+.matui-glass-orb {
+  position: absolute;
+  z-index: -1;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #e99875, #f4dbaa);
+  top: 25%;
+  left: 20%;
+  box-shadow: 80px -100px 0 -60px #fff9;
+}
+.matui-glass-content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  position: relative;
+  max-width: 100%;
+}
+.matui-glass-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 250px;
+}
+.matui-glass-card-content h2 {
+  font: 500 30px / 1.1 Georgia, serif;
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+.matui-glass-card-content p {
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0;
+}
+.matui-glass-card-content small {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.matui-glass-output {
+  flex-basis: 100%;
+  text-align: center;
+  font-size: 13px;
+  min-height: 20px;
+}
+.dark .matui-glass-stage {
+  background: radial-gradient(ellipse at 20% 20%, #784e35, transparent 55%),
+    radial-gradient(ellipse at 80% 70%, #33635b, transparent 60%), #1d302b;
+  color: #f1f4e9;
+  --matui-glass-fg: #f1f4e9;
+  --matui-glass-focus: #dcebc6;
+}
+.dark .matui-glass-orb {
+  background: linear-gradient(145deg, #b16f50, #497969);
+}
