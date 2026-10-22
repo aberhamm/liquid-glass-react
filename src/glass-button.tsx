@@ -11,6 +11,14 @@ export interface GlassButtonProps extends ButtonHTMLAttributes<HTMLButtonElement
   children?: ReactNode;
 }
 
+const BUTTON_OPTICS: NonNullable<GlassProps['optics']> = {
+  strength: 0.2,
+  frost: 0.5,
+  depth: 0.65,
+  curvature: 0.6,
+  dispersion: 0.5,
+};
+
 /** A native button over an upstream glass material; decoration never receives input. */
 export const GlassButton = forwardRef<HTMLButtonElement, GlassButtonProps>(function GlassButton(
   {
@@ -29,6 +37,7 @@ export const GlassButton = forwardRef<HTMLButtonElement, GlassButtonProps>(funct
     <span className={`matui-glass-button-shell matui-glass-button--${variant}`}>
       <Glass
         {...glassProps}
+        optics={{ ...BUTTON_OPTICS, ...glassProps?.optics }}
         aria-hidden
         style={{
           ...glassProps?.style,

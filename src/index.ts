@@ -1,7 +1,7 @@
 'use client';
 
 import '../styles/glass.css';
-export const VERSION = '0.3.0';
+export const VERSION = '0.3.1';
 // The engine is maintained upstream; matui owns the composed controls.
 export { Glass, Glass as LiquidGlass } from '@samasante/liquid-glass';
 export type {

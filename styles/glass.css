@@ -7,17 +7,17 @@
   color: var(--matui-glass-fg, #17332e);
 }
 .matui-glass-button-shell > [data-liquid-glass] {
-  background: #ffffff32;
+  background: transparent;
 }
 .matui-glass-button-shell.matui-glass-button--primary {
-  background: #117a6c88;
+  --matui-glass-button-tint: #a8ead829;
   color: #102e28;
 }
 .matui-glass-button--secondary {
-  background: #ffffff30;
+  --matui-glass-button-tint: #ffffff1a;
 }
 .matui-glass-button--subtle {
-  background: #ffffff10;
+  --matui-glass-button-tint: #ffffff0a;
 }
 .matui-glass-button {
   position: relative;
@@ -26,7 +26,7 @@
   color: inherit;
   border: 0;
   border-radius: inherit;
-  background: transparent;
+  background: var(--matui-glass-button-tint, #ffffff0a);
   cursor: pointer;
 }
 .matui-glass-button--sm {

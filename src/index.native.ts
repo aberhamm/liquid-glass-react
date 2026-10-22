@@ -14,7 +14,7 @@
  * this round (primitive only).
  */
 
-export const VERSION = '0.3.0';
+export const VERSION = '0.3.1';
 
 export { LiquidGlass, type LiquidGlassNativeProps } from './liquid-glass.native';
 

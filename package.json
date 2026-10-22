@@ -1,6 +1,6 @@
 {
   "name": "@aberhamm/liquid-glass-react",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "React liquid-glass components powered by the samasante liquid-glass engine, with a separate native frosted surface.",
   "type": "module",
   "license": "MIT",

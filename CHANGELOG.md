@@ -1,3 +1,13 @@
+# 0.3.1
+
+- Give glass buttons clear, stronger refraction defaults instead of the engine's
+  heavy frosted material preset. Keep optical overrides configurable.
+- Apply the button tint once, above the lens, so the lens samples the original
+  backdrop instead of an already-tinted shell.
+- Demonstrate aligned copy refraction on a detailed backdrop across browsers,
+  with a separate live-backdrop story documenting the Chromium-only path.
+- Add a rendered-pixel regression test that distinguishes refraction from frost.
+
 # 0.3.0
 
 - Replace the web renderer with the pinned `@samasante/liquid-glass@0.1.1` engine.

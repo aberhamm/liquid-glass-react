@@ -54,3 +54,60 @@ test('notification copy lens renders on a narrow viewport without page errors', 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(errors).toEqual([]);
 });
+
+// Compare real rendered pixels with displacement enabled and disabled, keeping
+// blur, tint and highlights unchanged. This catches a glass-looking flat fill.
+test('button visibly bends the pattern instead of merely frosting it', async ({ page }) => {
+  await page.goto(story('glass-button'));
+  const shell = page.locator('.matui-glass-button-shell');
+  await expect(shell.locator('feDisplacementMap').first()).toBeAttached();
+  await expect
+    .poll(() => shell.locator('feImage').first().getAttribute('href'))
+    .toMatch(/^data:image\/png;base64,.{500}/);
+  await page.getByRole('button', { name: 'Save changes' }).evaluate((el) => {
+    el.style.color = 'transparent';
+  });
+  const refracted = await shell.screenshot({ animations: 'disabled' });
+  await shell.locator('feDisplacementMap').evaluateAll((nodes) => {
+    for (const node of nodes) node.setAttribute('scale', '0');
+  });
+  const flat = await shell.screenshot({ animations: 'disabled' });
+  const difference = await page.evaluate(
+    async ({ a, b }) => {
+      const decode = async (value: string) => {
+        const image = new Image();
+        image.src = `data:image/png;base64,${value}`;
+        await image.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('No canvas context for pixel comparison');
+        context.drawImage(image, 0, 0);
+        return {
+          width: image.width,
+          height: image.height,
+          data: context.getImageData(0, 0, image.width, image.height).data,
+        };
+      };
+      const [actual, baseline] = await Promise.all([decode(a), decode(b)]);
+      let changed = 0;
+      let total = 0;
+      for (let y = 5; y < actual.height - 5; y++) {
+        for (let x = 5; x < actual.width - 5; x++) {
+          const i = (y * actual.width + x) * 4;
+          const delta =
+            Math.abs(actual.data[i] - baseline.data[i]) +
+            Math.abs(actual.data[i + 1] - baseline.data[i + 1]) +
+            Math.abs(actual.data[i + 2] - baseline.data[i + 2]);
+          if (delta > 30) changed++;
+          total++;
+        }
+      }
+      return changed / total;
+    },
+    { a: refracted.toString('base64'), b: flat.toString('base64') },
+  );
+  // At least 10% of interior pixels must visibly move, allowing engine raster differences.
+  expect(difference).toBeGreaterThan(0.1);
+});
