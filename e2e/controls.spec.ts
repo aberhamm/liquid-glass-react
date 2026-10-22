@@ -71,6 +71,20 @@ test('button visibly bends the pattern instead of merely frosting it', async ({ 
   await shell.locator('feDisplacementMap').evaluateAll((nodes) => {
     for (const node of nodes) node.setAttribute('scale', '0');
   });
+  // Firefox/WebKit may cache SVG output by filter id. Force a fresh flat raster.
+  await shell.locator('filter').evaluateAll((filters) => {
+    for (const filter of filters) {
+      const oldId = filter.id;
+      const newId = `${oldId}-flat`;
+      filter.id = newId;
+      const root = filter.closest('.matui-glass-button-shell');
+      for (const node of root?.querySelectorAll<HTMLElement>('[style]') ?? []) {
+        const value = node.style.filter;
+        if (value.includes(`#${oldId}`))
+          node.style.filter = value.replace(`#${oldId}`, `#${newId}`);
+      }
+    }
+  });
   const flat = await shell.screenshot({ animations: 'disabled' });
   const difference = await page.evaluate(
     async ({ a, b }) => {
